@@ -6,8 +6,8 @@ import (
 	"net/http"
 
 	"github.com/LePhuocVuTien/SurvivalPro-Backend/internal/db"
+	"github.com/LePhuocVuTien/SurvivalPro-Backend/internal/models"
 	"github.com/LePhuocVuTien/SurvivalPro-Backend/internal/utils"
-	"github.com/LePhuocVuTien/SurvivalPro-Backend/models"
 	"github.com/gorilla/mux"
 )
 

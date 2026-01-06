@@ -3,13 +3,14 @@ package handlers
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"strconv"
 
+	"github.com/LePhuocVuTien/SurvivalPro-Backend/internal/models"
+	"github.com/LePhuocVuTien/SurvivalPro-Backend/internal/redis"
 	"github.com/LePhuocVuTien/SurvivalPro-Backend/internal/utils"
-	"github.com/LePhuocVuTien/SurvivalPro-Backend/models"
-	"github.com/LePhuocVuTien/SurvivalPro-Backend/redis"
 )
 
 func GetCurrentWeather(w http.ResponseWriter, r *http.Request) {
@@ -23,7 +24,7 @@ func GetCurrentWeather(w http.ResponseWriter, r *http.Request) {
 	lat, _ := strconv.ParseFloat(latStr, 64)
 	lon, _ := strconv.ParseFloat(lonStr, 64)
 
-	cacheKey := fmt.Sprintf("weather:$f:$f", lat, lon)
+	cacheKey := fmt.Sprintf("weather:%f:%f", lat, lon)
 	cached, err := redis.CacheGet(cacheKey)
 
 	if err == nil {
@@ -40,7 +41,10 @@ func GetCurrentWeather(w http.ResponseWriter, r *http.Request) {
 	}
 
 	url := fmt.Sprintf("https://api.openweathermap.org/data/2.5/weather?lat=%f&lon=%f&appid=%s&units=metric&lang=vi", lat, lon, apiKey)
-	resp, _ := http.Get(url)
+	resp, err := http.Get(url)
+	if err != nil {
+		log.Println("Error fetching URL:", err)
+	}
 	defer resp.Body.Close()
 
 	var weather models.WeatherResponse

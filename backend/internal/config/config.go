@@ -86,8 +86,6 @@ func Load() {
 	for _, v := range requiredVars {
 		if os.Getenv(v) == "" {
 			log.Fatalf("❌ Missing required environment variable: %s", v)
-		} else {
-			log.Printf("%q : %q", v, os.Getenv(v))
 		}
 	}
 

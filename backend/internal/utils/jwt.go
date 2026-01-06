@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/LePhuocVuTien/SurvivalPro-Backend/internal/config"
-	"github.com/LePhuocVuTien/SurvivalPro-Backend/models"
+	"github.com/LePhuocVuTien/SurvivalPro-Backend/internal/models"
 	"github.com/golang-jwt/jwt/v4"
 )
 

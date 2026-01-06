@@ -6,11 +6,11 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/LePhuocVuTien/SurvivalPro-Backend/handlers"
 	"github.com/LePhuocVuTien/SurvivalPro-Backend/internal/config"
 	"github.com/LePhuocVuTien/SurvivalPro-Backend/internal/db"
-	"github.com/LePhuocVuTien/SurvivalPro-Backend/middleware"
-	"github.com/LePhuocVuTien/SurvivalPro-Backend/redis"
+	"github.com/LePhuocVuTien/SurvivalPro-Backend/internal/handlers"
+	"github.com/LePhuocVuTien/SurvivalPro-Backend/internal/middleware"
+	"github.com/LePhuocVuTien/SurvivalPro-Backend/internal/redis"
 	"github.com/gorilla/mux"
 )
 
@@ -18,7 +18,6 @@ func main() {
 	config.Load()
 
 	// Initialize DB với error handling tốt hơn
-	log.Println("Connecting to database...")
 	if err := db.InitDB(); err != nil {
 		log.Printf("⚠️  Database connection failed: %v", err)
 		log.Println("Server will start without database connection")
@@ -27,7 +26,6 @@ func main() {
 	}
 
 	// Initialize Redis với error handling
-	log.Println("Connecting to Redis...")
 	if err := redis.InitRedis(); err != nil {
 		log.Printf("⚠️  Redis connection failed: %v", err)
 		log.Println("Server will start without Redis")
