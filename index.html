@@ -1,0 +1,1533 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard - PostgreSQL Management</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        [x-cloak] { display: none !important; }
+        .sidebar-active { 
+            background-color: #eff6ff; 
+            color: #2563eb;
+            border-right: 4px solid #2563eb;
+        }
+        .map-container {
+            width: 100%;
+            height: 100%;
+            min-height: 500px;
+        }
+        .line-clamp-2 {
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+        .modal-overlay {
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 40;
+        }
+        .modal-content {
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body class="bg-gray-50" x-data="adminDashboard()" x-cloak x-init="initDashboard()">
+    
+    <!-- Toast Notification -->
+    <div x-show="toast.show" 
+         x-transition:enter="transition ease-out duration-300"
+         x-transition:enter-start="opacity-0 transform translate-x-8"
+         x-transition:enter-end="opacity-100 transform translate-x-0"
+         x-transition:leave="transition ease-in duration-200"
+         x-transition:leave-start="opacity-100"
+         x-transition:leave-end="opacity-0"
+         class="fixed top-4 right-4 z-50 px-6 py-4 rounded-lg shadow-lg max-w-md flex items-center"
+         :class="toast.type === 'success' ? 'bg-green-500' : 'bg-red-500'">
+        <i :class="toast.type === 'success' ? 'fas fa-check-circle' : 'fas fa-exclamation-circle'" class="text-white mr-3"></i>
+        <p class="text-white font-medium" x-text="toast.message"></p>
+        <button @click="toast.show = false" class="ml-4 text-white hover:text-gray-200">
+            <i class="fas fa-times"></i>
+        </button>
+    </div>
+
+    <!-- Modal -->
+    <div x-show="modal.show" 
+         x-transition:enter="transition ease-out duration-300"
+         x-transition:enter-start="opacity-0"
+         x-transition:enter-end="opacity-100"
+         x-transition:leave="transition ease-in duration-200"
+         x-transition:leave-start="opacity-100"
+         x-transition:leave-end="opacity-0"
+         class="modal-overlay fixed inset-0 flex items-center justify-center p-4">
+        <div class="bg-white rounded-xl shadow-2xl modal-content w-full max-w-2xl">
+            <div class="p-6 border-b border-gray-200 flex justify-between items-center">
+                <h3 class="text-xl font-bold text-gray-800" x-text="modal.title"></h3>
+                <button @click="closeModal()" class="text-gray-500 hover:text-gray-700">
+                    <i class="fas fa-times text-xl"></i>
+                </button>
+            </div>
+            
+            <div class="p-6">
+                <!-- User Form -->
+                <template x-if="modal.type === 'user'">
+                    <form @submit.prevent="saveItem()" class="space-y-4">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Tên</label>
+                                <input type="text" x-model="modal.data.name" required
+                                       class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                                <input type="email" x-model="modal.data.email" required
+                                       class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            </div>
+                        </div>
+                        
+                        <div x-show="!modal.data.id">
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Mật khẩu</label>
+                            <input type="password" x-model="modal.data.password" required
+                                   class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Avatar URL</label>
+                            <input type="text" x-model="modal.data.avatar"
+                                   class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <div class="mt-2 flex items-center">
+                                <div class="w-12 h-12 rounded-full overflow-hidden bg-gray-200 mr-3">
+                                    <img :src="modal.data.avatar || 'https://via.placeholder.com/150'" 
+                                         class="w-full h-full object-cover"
+                                         @error="modal.data.avatar = 'https://via.placeholder.com/150'">
+                                </div>
+                                <span class="text-sm text-gray-500">Preview</span>
+                            </div>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Push Token</label>
+                            <input type="text" x-model="modal.data.push_token"
+                                   class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        </div>
+                    </form>
+                </template>
+                
+                <!-- Checklist Form -->
+                <template x-if="modal.type === 'checklist'">
+                    <form @submit.prevent="saveItem()" class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">User</label>
+                            <select x-model="modal.data.user_id" required
+                                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                <option value="">Chọn user</option>
+                                <template x-for="user in users" :key="user.id">
+                                    <option :value="user.id" x-text="user.name"></option>
+                                </template>
+                            </select>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Tiêu đề</label>
+                            <input type="text" x-model="modal.data.title" required
+                                   class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Danh mục</label>
+                            <select x-model="modal.data.category" required
+                                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                <option value="supplies">Supplies</option>
+                                <option value="documents">Documents</option>
+                                <option value="emergency">Emergency</option>
+                                <option value="food">Food</option>
+                                <option value="water">Water</option>
+                                <option value="shelter">Shelter</option>
+                            </select>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Mô tả</label>
+                            <textarea x-model="modal.data.description" rows="3"
+                                      class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
+                        </div>
+                        
+                        <div class="flex items-center">
+                            <input type="checkbox" x-model="modal.data.is_checked"
+                                   class="w-5 h-5 text-blue-600 rounded focus:ring-2 focus:ring-blue-500">
+                            <label class="ml-2 text-sm font-medium text-gray-700">Đã hoàn thành</label>
+                        </div>
+                    </form>
+                </template>
+                
+                <!-- Location Form -->
+                <template x-if="modal.type === 'location'">
+                    <form @submit.prevent="saveItem()" class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">User</label>
+                            <select x-model="modal.data.user_id" required
+                                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                <option value="">Chọn user</option>
+                                <template x-for="user in users" :key="user.id">
+                                    <option :value="user.id" x-text="user.name"></option>
+                                </template>
+                            </select>
+                        </div>
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Vĩ độ (Latitude)</label>
+                                <input type="number" step="0.000001" x-model="modal.data.lat" required
+                                       class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Kinh độ (Longitude)</label>
+                                <input type="number" step="0.000001" x-model="modal.data.lon" required
+                                       class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            </div>
+                        </div>
+                        
+                        <div class="p-4 bg-gray-50 rounded-lg">
+                            <p class="text-sm text-gray-600 mb-2">Vị trí trên bản đồ:</p>
+                            <div class="h-48 rounded overflow-hidden" id="modal-map"></div>
+                        </div>
+                    </form>
+                </template>
+                
+                <!-- Guide Form -->
+                <template x-if="modal.type === 'guide'">
+                    <form @submit.prevent="saveItem()" class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">User</label>
+                            <select x-model="modal.data.user_id" required
+                                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                <option value="">Chọn user</option>
+                                <template x-for="user in users" :key="user.id">
+                                    <option :value="user.id" x-text="user.name"></option>
+                                </template>
+                            </select>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Tiêu đề</label>
+                            <input type="text" x-model="modal.data.title" required
+                                   class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        </div>
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Danh mục</label>
+                                <select x-model="modal.data.category" required
+                                        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                    <option value="first-aid">First Aid</option>
+                                    <option value="shelter">Shelter</option>
+                                    <option value="food">Food & Water</option>
+                                    <option value="navigation">Navigation</option>
+                                    <option value="fire">Fire Making</option>
+                                    <option value="signaling">Signaling</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Độ khó</label>
+                                <select x-model="modal.data.difficulty" required
+                                        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                    <option value="easy">Easy</option>
+                                    <option value="medium">Medium</option>
+                                    <option value="hard">Hard</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Icon</label>
+                            <input type="text" x-model="modal.data.icon" required
+                                   placeholder="🔪, 🏕️, 🔥, v.v."
+                                   class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Nội dung</label>
+                            <textarea x-model="modal.data.content" rows="4" required
+                                      class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Hình ảnh URL</label>
+                            <input type="text" x-model="modal.data.image_url"
+                                   class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        </div>
+                        
+                        <div class="flex items-center">
+                            <input type="checkbox" x-model="modal.data.is_read"
+                                   class="w-5 h-5 text-blue-600 rounded focus:ring-2 focus:ring-blue-500">
+                            <label class="ml-2 text-sm font-medium text-gray-700">Đã đọc</label>
+                        </div>
+                    </form>
+                </template>
+                
+                <!-- Notification Form -->
+                <template x-if="modal.type === 'notification'">
+                    <form @submit.prevent="saveItem()" class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">User</label>
+                            <select x-model="modal.data.user_id" required
+                                    class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                <option value="">Chọn user</option>
+                                <template x-for="user in users" :key="user.id">
+                                    <option :value="user.id" x-text="user.name"></option>
+                                </template>
+                            </select>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Tiêu đề</label>
+                            <input type="text" x-model="modal.data.title" required
+                                   class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Nội dung</label>
+                            <textarea x-model="modal.data.body" rows="3" required
+                                      class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
+                        </div>
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Loại</label>
+                                <select x-model="modal.data.type" required
+                                        class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                    <option value="push">Push</option>
+                                    <option value="in_app">In App</option>
+                                    <option value="both">Both</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 mb-1">Data (JSON)</label>
+                                <input type="text" x-model="modal.data.data"
+                                       placeholder='{"key": "value"}'
+                                       class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            </div>
+                        </div>
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div class="flex items-center">
+                                <input type="checkbox" x-model="modal.data.is_read"
+                                       class="w-5 h-5 text-blue-600 rounded focus:ring-2 focus:ring-blue-500">
+                                <label class="ml-2 text-sm font-medium text-gray-700">Đã đọc</label>
+                            </div>
+                            <div class="flex items-center">
+                                <input type="checkbox" x-model="modal.data.sent"
+                                       class="w-5 h-5 text-blue-600 rounded focus:ring-2 focus:ring-blue-500">
+                                <label class="ml-2 text-sm font-medium text-gray-700">Đã gửi</label>
+                            </div>
+                        </div>
+                    </form>
+                </template>
+                
+                <!-- Detail View -->
+                <template x-if="modal.mode === 'view'">
+                    <div class="space-y-4">
+                        <template x-if="modal.type === 'user'">
+                            <div>
+                                <div class="flex items-center mb-4">
+                                    <img :src="modal.data.avatar || 'https://via.placeholder.com/150'" 
+                                         class="w-20 h-20 rounded-full object-cover border-2 border-gray-300 mr-4">
+                                    <div>
+                                        <h4 class="text-xl font-bold text-gray-800" x-text="modal.data.name"></h4>
+                                        <p class="text-gray-600" x-text="modal.data.email"></p>
+                                    </div>
+                                </div>
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <p class="text-sm text-gray-500">Push Token</p>
+                                        <p class="font-medium" x-text="modal.data.push_token || 'Không có'"></p>
+                                    </div>
+                                    <div>
+                                        <p class="text-sm text-gray-500">Ngày tạo</p>
+                                        <p class="font-medium" x-text="formatDate(modal.data.created_at)"></p>
+                                    </div>
+                                </div>
+                            </div>
+                        </template>
+                        
+                        <template x-if="modal.type === 'checklist'">
+                            <div class="space-y-4">
+                                <div>
+                                    <h4 class="text-xl font-bold text-gray-800 mb-2" x-text="modal.data.title"></h4>
+                                    <div class="flex items-center mb-4">
+                                        <span class="px-3 py-1 text-xs font-medium rounded-full mr-2"
+                                              :class="{
+                                                  'bg-blue-100 text-blue-800': modal.data.category === 'supplies',
+                                                  'bg-purple-100 text-purple-800': modal.data.category === 'documents',
+                                                  'bg-red-100 text-red-800': modal.data.category === 'emergency',
+                                                  'bg-green-100 text-green-800': modal.data.category === 'food'
+                                              }"
+                                              x-text="modal.data.category"></span>
+                                        <span class="px-2 py-1 text-xs font-medium rounded-full"
+                                              :class="modal.data.is_checked ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'">
+                                            <span x-text="modal.data.is_checked ? 'Đã hoàn thành' : 'Chưa hoàn thành'"></span>
+                                        </span>
+                                    </div>
+                                </div>
+                                <div>
+                                    <p class="text-sm text-gray-500 mb-1">Mô tả</p>
+                                    <p class="text-gray-800" x-text="modal.data.description || 'Không có mô tả'"></p>
+                                </div>
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <p class="text-sm text-gray-500">Người tạo</p>
+                                        <p class="font-medium" x-text="getUserName(modal.data.user_id)"></p>
+                                    </div>
+                                    <div>
+                                        <p class="text-sm text-gray-500">Ngày tạo</p>
+                                        <p class="font-medium" x-text="formatDate(modal.data.created_at)"></p>
+                                    </div>
+                                </div>
+                            </div>
+                        </template>
+                        
+                        <template x-if="modal.type === 'location'">
+                            <div class="space-y-4">
+                                <div>
+                                    <h4 class="text-xl font-bold text-gray-800 mb-2">Thông tin vị trí</h4>
+                                </div>
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <p class="text-sm text-gray-500">Người dùng</p>
+                                        <p class="font-medium" x-text="getUserName(modal.data.user_id)"></p>
+                                    </div>
+                                    <div>
+                                        <p class="text-sm text-gray-500">Ngày tạo</p>
+                                        <p class="font-medium" x-text="formatDate(modal.data.created_at)"></p>
+                                    </div>
+                                </div>
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <p class="text-sm text-gray-500">Vĩ độ</p>
+                                        <p class="font-medium font-mono" x-text="modal.data.lat?.toFixed(6)"></p>
+                                    </div>
+                                    <div>
+                                        <p class="text-sm text-gray-500">Kinh độ</p>
+                                        <p class="font-medium font-mono" x-text="modal.data.lon?.toFixed(6)"></p>
+                                    </div>
+                                </div>
+                                <div class="h-64 rounded-lg overflow-hidden bg-gray-100">
+                                    <div id="detail-map" class="w-full h-full"></div>
+                                </div>
+                            </div>
+                        </template>
+                        
+                        <template x-if="modal.type === 'guide'">
+                            <div class="space-y-4">
+                                <div class="flex items-start justify-between">
+                                    <div>
+                                        <h4 class="text-xl font-bold text-gray-800 mb-2" x-text="modal.data.title"></h4>
+                                        <div class="flex items-center flex-wrap gap-2 mb-4">
+                                            <span class="px-3 py-1 text-xs font-medium rounded-full"
+                                                  :class="{
+                                                      'bg-green-100 text-green-800': modal.data.difficulty === 'easy',
+                                                      'bg-yellow-100 text-yellow-800': modal.data.difficulty === 'medium',
+                                                      'bg-red-100 text-red-800': modal.data.difficulty === 'hard'
+                                                  }"
+                                                  x-text="modal.data.difficulty.toUpperCase()"></span>
+                                            <span class="px-3 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800 capitalize"
+                                                  x-text="modal.data.category"></span>
+                                            <span x-show="modal.data.is_read" 
+                                                  class="px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800">
+                                                ✓ Đã đọc
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <span class="text-2xl" x-text="modal.data.icon"></span>
+                                </div>
+                                
+                                <div class="mb-4">
+                                    <img :src="modal.data.image_url || 'https://via.placeholder.com/800x400'" 
+                                         class="w-full h-48 object-cover rounded-lg">
+                                </div>
+                                
+                                <div>
+                                    <p class="text-sm text-gray-500 mb-1">Nội dung</p>
+                                    <p class="text-gray-800 whitespace-pre-line" x-text="modal.data.content"></p>
+                                </div>
+                                
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-gray-200">
+                                    <div>
+                                        <p class="text-sm text-gray-500">Người tạo</p>
+                                        <p class="font-medium" x-text="getUserName(modal.data.user_id)"></p>
+                                    </div>
+                                    <div>
+                                        <p class="text-sm text-gray-500">Lượt xem</p>
+                                        <p class="font-medium" x-text="modal.data.views"></p>
+                                    </div>
+                                    <div>
+                                        <p class="text-sm text-gray-500">Ngày tạo</p>
+                                        <p class="font-medium" x-text="formatDate(modal.data.created_at)"></p>
+                                    </div>
+                                </div>
+                            </div>
+                        </template>
+                        
+                        <template x-if="modal.type === 'notification'">
+                            <div class="space-y-4">
+                                <div>
+                                    <h4 class="text-xl font-bold text-gray-800 mb-2" x-text="modal.data.title"></h4>
+                                    <div class="flex items-center flex-wrap gap-2 mb-4">
+                                        <span class="px-2 py-1 text-xs font-medium rounded-full"
+                                              :class="modal.data.is_read ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'">
+                                            <span x-text="modal.data.is_read ? '✓ Đã đọc' : '○ Chưa đọc'"></span>
+                                        </span>
+                                        <span class="px-2 py-1 text-xs font-medium rounded-full"
+                                              :class="modal.data.sent ? 'bg-green-100 text-green-800' : 'bg-orange-100 text-orange-800'">
+                                            <span x-text="modal.data.sent ? '✓ Đã gửi' : '⏳ Chưa gửi'"></span>
+                                        </span>
+                                        <span class="px-2 py-1 text-xs font-medium rounded-full bg-purple-100 text-purple-800" 
+                                              x-text="modal.data.type"></span>
+                                    </div>
+                                </div>
+                                
+                                <div>
+                                    <p class="text-sm text-gray-500 mb-1">Nội dung</p>
+                                    <p class="text-gray-800" x-text="modal.data.body"></p>
+                                </div>
+                                
+                                <div x-show="modal.data.data">
+                                    <p class="text-sm text-gray-500 mb-1">Data (JSON)</p>
+                                    <pre class="bg-gray-100 p-3 rounded text-sm overflow-auto max-h-32" x-text="modal.data.data"></pre>
+                                </div>
+                                
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-gray-200">
+                                    <div>
+                                        <p class="text-sm text-gray-500">Người nhận</p>
+                                        <p class="font-medium" x-text="getUserName(modal.data.user_id)"></p>
+                                    </div>
+                                    <div>
+                                        <p class="text-sm text-gray-500">Ngày gửi</p>
+                                        <p class="font-medium" x-text="modal.data.sent_at ? formatDate(modal.data.sent_at) : 'Chưa gửi'"></p>
+                                    </div>
+                                    <div>
+                                        <p class="text-sm text-gray-500">Ngày tạo</p>
+                                        <p class="font-medium" x-text="formatDate(modal.data.created_at)"></p>
+                                    </div>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </template>
+            </div>
+            
+            <div class="p-6 border-t border-gray-200 flex justify-end space-x-3">
+                <button @click="closeModal()" 
+                        class="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors">
+                    Hủy
+                </button>
+                <button x-show="modal.mode !== 'view'" 
+                        @click="saveItem()" 
+                        class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                    <span x-text="modal.data.id ? 'Cập nhật' : 'Tạo mới'"></span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div class="flex h-screen overflow-hidden">
+        
+        <!-- Sidebar -->
+        <aside class="w-64 bg-white border-r border-gray-200 flex flex-col flex-shrink-0">
+            <div class="p-6 border-b border-gray-200">
+                <h1 class="text-2xl font-bold text-gray-800">Admin Panel</h1>
+                <p class="text-sm text-gray-500 mt-1">PostgreSQL Manager</p>
+            </div>
+            
+            <nav class="flex-1 overflow-y-auto p-4">
+                <template x-for="item in navigation" :key="item.id">
+                    <button @click="changePage(item.id)" 
+                            class="w-full text-left px-4 py-3 rounded-lg mb-2 transition-colors hover:bg-gray-50 flex items-center"
+                            :class="currentPage === item.id ? 'sidebar-active' : 'text-gray-700'">
+                        <i :class="item.icon" class="mr-3 w-5 text-center"></i>
+                        <span x-text="item.label"></span>
+                    </button>
+                </template>
+            </nav>
+            
+            <div class="p-4 border-t border-gray-200">
+                <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center text-white font-bold">
+                        <i class="fas fa-user"></i>
+                    </div>
+                    <div>
+                        <p class="text-sm font-medium text-gray-800">Admin User</p>
+                        <button class="text-xs text-gray-500 hover:text-red-600">Đăng xuất</button>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="flex-1 overflow-hidden flex flex-col">
+            
+            <!-- Header -->
+            <header class="bg-white border-b border-gray-200 px-8 py-4 flex-shrink-0">
+                <div class="flex items-center justify-between">
+                    <h2 class="text-2xl font-bold text-gray-800" x-text="getCurrentPageTitle()"></h2>
+                    <div class="flex items-center gap-4">
+                        <div class="relative">
+                            <input type="text" 
+                                   x-model="globalSearch"
+                                   @input="debounceSearch()"
+                                   placeholder="Tìm kiếm toàn bộ..." 
+                                   class="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 w-80">
+                            <i class="fas fa-search absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+                        </div>
+                        <button @click="openCreateModal()" 
+                                x-show="currentPage !== 'locations'"
+                                class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2">
+                            <i class="fas fa-plus"></i>
+                            <span>Thêm mới</span>
+                        </button>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Content Area -->
+            <div class="flex-1 overflow-y-auto p-8">
+                
+                <!-- Users Page -->
+                <div x-show="currentPage === 'users'" x-transition>
+                    <div class="bg-white rounded-lg shadow overflow-hidden">
+                        <table class="w-full">
+                            <thead class="bg-gray-50 border-b border-gray-200">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Avatar</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created At</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-200">
+                                <template x-for="user in filteredData" :key="user.id">
+                                    <tr class="hover:bg-gray-50 transition-colors">
+                                        <td class="px-6 py-4 text-sm text-gray-900" x-text="user.id"></td>
+                                        <td class="px-6 py-4">
+                                            <img :src="user.avatar || 'https://via.placeholder.com/40'" 
+                                                 class="w-10 h-10 rounded-full object-cover border-2 border-gray-200"
+                                                 @error="user.avatar = 'https://via.placeholder.com/40'">
+                                        </td>
+                                        <td class="px-6 py-4 text-sm font-medium text-gray-900" x-text="user.name"></td>
+                                        <td class="px-6 py-4 text-sm text-gray-600" x-text="user.email"></td>
+                                        <td class="px-6 py-4 text-sm text-gray-600" x-text="formatDate(user.created_at)"></td>
+                                        <td class="px-6 py-4 text-sm space-x-3">
+                                            <button @click="viewItem('user', user)" 
+                                                    class="text-blue-600 hover:text-blue-800 transition-colors" 
+                                                    title="View">
+                                                <i class="fas fa-eye"></i>
+                                            </button>
+                                            <button @click="editItem('user', user)" 
+                                                    class="text-green-600 hover:text-green-800 transition-colors" 
+                                                    title="Edit">
+                                                <i class="fas fa-edit"></i>
+                                            </button>
+                                            <button @click="deleteItem('users', user.id)" 
+                                                    class="text-red-600 hover:text-red-800 transition-colors" 
+                                                    title="Delete">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                </template>
+                                <tr x-show="filteredData.length === 0">
+                                    <td colspan="6" class="px-6 py-8 text-center text-gray-500">Không có dữ liệu</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Checklist Items Page -->
+                <div x-show="currentPage === 'checklist'" x-transition>
+                    <div class="mb-4 flex gap-4">
+                        <select x-model="filters.checklist.user_id" 
+                                @change="applyFilters()" 
+                                class="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="">Tất cả Users</option>
+                            <template x-for="user in users" :key="user.id">
+                                <option :value="user.id" x-text="user.name"></option>
+                            </template>
+                        </select>
+                        <select x-model="filters.checklist.category" 
+                                @change="applyFilters()" 
+                                class="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="">Tất cả Category</option>
+                            <option value="supplies">Supplies</option>
+                            <option value="documents">Documents</option>
+                            <option value="emergency">Emergency</option>
+                            <option value="food">Food</option>
+                            <option value="water">Water</option>
+                            <option value="shelter">Shelter</option>
+                        </select>
+                        <select x-model="filters.checklist.status" 
+                                @change="applyFilters()" 
+                                class="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="">Tất cả trạng thái</option>
+                            <option value="checked">Đã hoàn thành</option>
+                            <option value="unchecked">Chưa hoàn thành</option>
+                        </select>
+                    </div>
+                    
+                    <div class="bg-white rounded-lg shadow overflow-hidden">
+                        <table class="w-full">
+                            <thead class="bg-gray-50 border-b border-gray-200">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Title</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Category</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-200">
+                                <template x-for="item in filteredData" :key="item.id">
+                                    <tr class="hover:bg-gray-50 transition-colors">
+                                        <td class="px-6 py-4">
+                                            <input type="checkbox" 
+                                                   :checked="item.is_checked"
+                                                   @change="toggleChecked(item.id)"
+                                                   class="w-5 h-5 text-blue-600 rounded focus:ring-2 focus:ring-blue-500 cursor-pointer">
+                                        </td>
+                                        <td class="px-6 py-4 text-sm font-medium text-gray-900" 
+                                            :class="item.is_checked ? 'line-through text-gray-400' : ''" 
+                                            x-text="item.title"></td>
+                                        <td class="px-6 py-4">
+                                            <span class="px-3 py-1 text-xs font-medium rounded-full"
+                                                  :class="{
+                                                      'bg-blue-100 text-blue-800': item.category === 'supplies',
+                                                      'bg-purple-100 text-purple-800': item.category === 'documents',
+                                                      'bg-red-100 text-red-800': item.category === 'emergency',
+                                                      'bg-green-100 text-green-800': item.category === 'food',
+                                                      'bg-cyan-100 text-cyan-800': item.category === 'water',
+                                                      'bg-amber-100 text-amber-800': item.category === 'shelter'
+                                                  }"
+                                                  x-text="item.category"></span>
+                                        </td>
+                                        <td class="px-6 py-4 text-sm text-gray-600 line-clamp-2 max-w-xs" x-text="item.description || 'Không có mô tả'"></td>
+                                        <td class="px-6 py-4 text-sm text-gray-600" x-text="getUserName(item.user_id)"></td>
+                                        <td class="px-6 py-4 text-sm space-x-3">
+                                            <button @click="viewItem('checklist', item)" 
+                                                    class="text-blue-600 hover:text-blue-800 transition-colors">
+                                                    <i class="fas fa-eye"></i>
+                                            </button>
+                                            <button @click="editItem('checklist', item)" 
+                                                    class="text-green-600 hover:text-green-800 transition-colors">
+                                                    <i class="fas fa-edit"></i>
+                                            </button>
+                                            <button @click="deleteItem('checklist', item.id)" 
+                                                    class="text-red-600 hover:text-red-800 transition-colors">
+                                                    <i class="fas fa-trash"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                </template>
+                                <tr x-show="filteredData.length === 0">
+                                    <td colspan="6" class="px-6 py-8 text-center text-gray-500">Không có dữ liệu</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- User Locations Page -->
+                <div x-show="currentPage === 'locations'" x-transition>
+                    <div class="mb-4">
+                        <select x-model="filters.locations.user_id" 
+                                @change="applyFilters(); updateMap()" 
+                                class="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="">Tất cả Users</option>
+                            <template x-for="user in users" :key="user.id">
+                                <option :value="user.id" x-text="user.name"></option>
+                            </template>
+                        </select>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <div class="bg-white rounded-lg shadow overflow-hidden">
+                            <div class="p-4 border-b border-gray-200 bg-gray-50">
+                                <h3 class="font-semibold text-gray-800">Danh sách Locations</h3>
+                            </div>
+                            <div class="overflow-y-auto" style="max-height: 550px;">
+                                <table class="w-full">
+                                    <thead class="bg-gray-50 border-b border-gray-200 sticky top-0">
+                                        <tr>
+                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">User</th>
+                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Latitude</th>
+                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Longitude</th>
+                                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Time</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-gray-200">
+                                        <template x-for="loc in filteredData" :key="loc.id">
+                                            <tr class="hover:bg-blue-50 cursor-pointer transition-colors" 
+                                                @click="focusLocation(loc)">
+                                                <td class="px-4 py-3 text-sm font-medium text-gray-900" x-text="getUserName(loc.user_id)"></td>
+                                                <td class="px-4 py-3 text-sm text-gray-600 font-mono" x-text="loc.lat.toFixed(6)"></td>
+                                                <td class="px-4 py-3 text-sm text-gray-600 font-mono" x-text="loc.lon.toFixed(6)"></td>
+                                                <td class="px-4 py-3 text-sm text-gray-600" x-text="formatDate(loc.created_at)"></td>
+                                            </tr>
+                                        </template>
+                                        <tr x-show="filteredData.length === 0">
+                                            <td colspan="4" class="px-4 py-8 text-center text-gray-500">Không có dữ liệu</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        
+                        <div class="bg-white rounded-lg shadow overflow-hidden">
+                            <div class="p-4 border-b border-gray-200 bg-gray-50">
+                                <h3 class="font-semibold text-gray-800">Map View</h3>
+                            </div>
+                            <div class="map-container" id="map"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Survival Guides Page -->
+                <div x-show="currentPage === 'guides'" x-transition>
+                    <div class="mb-4 flex gap-4">
+                        <select x-model="filters.guides.category" 
+                                @change="applyFilters()" 
+                                class="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="">Tất cả Category</option>
+                            <option value="first-aid">First Aid</option>
+                            <option value="shelter">Shelter</option>
+                            <option value="food">Food & Water</option>
+                            <option value="navigation">Navigation</option>
+                            <option value="fire">Fire Making</option>
+                            <option value="signaling">Signaling</option>
+                        </select>
+                        <select x-model="filters.guides.difficulty" 
+                                @change="applyFilters()" 
+                                class="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="">Tất cả Difficulty</option>
+                            <option value="easy">Easy</option>
+                            <option value="medium">Medium</option>
+                            <option value="hard">Hard</option>
+                        </select>
+                        <select x-model="filters.guides.is_read" 
+                                @change="applyFilters()" 
+                                class="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="">Tất cả trạng thái</option>
+                            <option value="true">Đã đọc</option>
+                            <option value="false">Chưa đọc</option>
+                        </select>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        <template x-for="guide in filteredData" :key="guide.id">
+                            <div class="bg-white rounded-lg shadow overflow-hidden hover:shadow-xl transition-shadow">
+                                <div class="relative">
+                                    <img :src="guide.image_url || 'https://via.placeholder.com/800x400'" 
+                                         class="w-full h-48 object-cover"
+                                         @error="guide.image_url = 'https://via.placeholder.com/800x400'">
+                                    <div class="absolute top-2 right-2 bg-white rounded-full px-2 py-1 text-xs font-medium shadow">
+                                        <span x-text="guide.icon"></span>
+                                    </div>
+                                </div>
+                                <div class="p-4">
+                                    <div class="flex items-center gap-2 mb-2 flex-wrap">
+                                        <span class="px-2 py-1 text-xs font-medium rounded-full"
+                                              :class="{
+                                                  'bg-green-100 text-green-800': guide.difficulty === 'easy',
+                                                  'bg-yellow-100 text-yellow-800': guide.difficulty === 'medium',
+                                                  'bg-red-100 text-red-800': guide.difficulty === 'hard'
+                                              }"
+                                              x-text="guide.difficulty.toUpperCase()"></span>
+                                        <span x-show="guide.is_read" 
+                                              class="px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800">
+                                              ✓ Đã đọc
+                                        </span>
+                                    </div>
+                                    <h3 class="font-semibold text-gray-800 mb-2 line-clamp-2" x-text="guide.title"></h3>
+                                    <p class="text-sm text-gray-600 mb-3 capitalize" x-text="guide.category"></p>
+                                    <div class="flex items-center justify-between text-xs text-gray-500 mb-3">
+                                        <span><i class="fas fa-eye mr-1"></i><span x-text="guide.views"></span> views</span>
+                                        <span x-text="formatDate(guide.created_at)"></span>
+                                    </div>
+                                    <div class="flex gap-2">
+                                        <button @click="viewItem('guide', guide)" 
+                                                class="flex-1 px-3 py-2 text-sm bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors">
+                                                <i class="fas fa-eye mr-1"></i> Xem
+                                        </button>
+                                        <button @click="editItem('guide', guide)" 
+                                                class="px-3 py-2 text-sm bg-green-500 text-white rounded hover:bg-green-600 transition-colors">
+                                                <i class="fas fa-edit"></i>
+                                        </button>
+                                        <button @click="deleteItem('guides', guide.id)" 
+                                                class="px-3 py-2 text-sm bg-red-500 text-white rounded hover:bg-red-600 transition-colors">
+                                                <i class="fas fa-trash"></i>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </template>
+                        <div x-show="filteredData.length === 0" class="col-span-3 text-center py-12 text-gray-500">
+                            Không có dữ liệu
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Notifications Page -->
+                <div x-show="currentPage === 'notifications'" x-transition>
+                    <div class="mb-4 flex gap-4 flex-wrap">
+                        <select x-model="filters.notifications.user_id" 
+                                @change="applyFilters()" 
+                                class="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="">Tất cả Users</option>
+                            <template x-for="user in users" :key="user.id">
+                                <option :value="user.id" x-text="user.name"></option>
+                            </template>
+                        </select>
+                        <select x-model="filters.notifications.type" 
+                                @change="applyFilters()" 
+                                class="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="">Tất cả Type</option>
+                            <option value="push">Push</option>
+                            <option value="in_app">In App</option>
+                            <option value="both">Both</option>
+                        </select>
+                        <select x-model="filters.notifications.is_read" 
+                                @change="applyFilters()" 
+                                class="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="">Tất cả Read Status</option>
+                            <option value="true">Đã đọc</option>
+                            <option value="false">Chưa đọc</option>
+                        </select>
+                        <select x-model="filters.notifications.sent" 
+                                @change="applyFilters()" 
+                                class="px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            <option value="">Tất cả Sent Status</option>
+                            <option value="true">Đã gửi</option>
+                            <option value="false">Chưa gửi</option>
+                        </select>
+                    </div>
+                    
+                    <div class="bg-white rounded-lg shadow overflow-hidden">
+                        <table class="w-full">
+                            <thead class="bg-gray-50 border-b border-gray-200">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Title</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Body</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-gray-200">
+                                <template x-for="notif in filteredData" :key="notif.id">
+                                    <tr class="hover:bg-gray-50 transition-colors">
+                                        <td class="px-6 py-4">
+                                            <div class="flex flex-col gap-2">
+                                                <span class="px-2 py-1 text-xs font-medium rounded-full inline-block w-fit"
+                                                      :class="notif.is_read ? 'bg-blue-100 text-blue-800' : 'bg-gray-100 text-gray-800'">
+                                                    <span x-text="notif.is_read ? '✓ Đã đọc' : '○ Chưa đọc'"></span>
+                                                </span>
+                                                <span class="px-2 py-1 text-xs font-medium rounded-full inline-block w-fit"
+                                                      :class="notif.sent ? 'bg-green-100 text-green-800' : 'bg-orange-100 text-orange-800'">
+                                                    <span x-text="notif.sent ? '✓ Đã gửi' : '⏳ Chưa gửi'"></span>
+                                                </span>
+                                            </div>
+                                        </td>
+                                        <td class="px-6 py-4 text-sm font-medium text-gray-900" x-text="notif.title"></td>
+                                        <td class="px-6 py-4 text-sm text-gray-600 max-w-xs truncate" x-text="notif.body"></td>
+                                        <td class="px-6 py-4">
+                                            <span class="px-2 py-1 text-xs font-medium rounded-full bg-purple-100 text-purple-800" 
+                                                  x-text="notif.type"></span>
+                                        </td>
+                                        <td class="px-6 py-4 text-sm text-gray-600" x-text="getUserName(notif.user_id)"></td>
+                                        <td class="px-6 py-4 text-sm space-x-3">
+                                            <button @click="viewItem('notification', notif)" 
+                                                    class="text-blue-600 hover:text-blue-800 transition-colors">
+                                                    <i class="fas fa-eye"></i>
+                                            </button>
+                                            <button @click="editItem('notification', notif)" 
+                                                    class="text-green-600 hover:text-green-800 transition-colors">
+                                                    <i class="fas fa-edit"></i>
+                                            </button>
+                                            <button @click="deleteItem('notifications', notif.id)" 
+                                                    class="text-red-600 hover:text-red-800 transition-colors">
+                                                    <i class="fas fa-trash"></i>
+                                            </button>
+                                            <button x-show="!notif.sent" 
+                                                    @click="sendNotification(notif.id)" 
+                                                    class="text-purple-600 hover:text-purple-800 transition-colors"
+                                                    title="Send">
+                                                    <i class="fas fa-paper-plane"></i>
+                                            </button>
+                                        </td>
+                                    </tr>
+                                </template>
+                                <tr x-show="filteredData.length === 0">
+                                    <td colspan="6" class="px-6 py-8 text-center text-gray-500">Không có dữ liệu</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+            </div>
+        </main>
+    </div>
+
+    <script>
+        function adminDashboard() {
+            return {
+                // Data state
+                users: [],
+                checklist: [],
+                locations: [],
+                guides: [],
+                notifications: [],
+                
+                // UI state
+                currentPage: 'users',
+                globalSearch: '',
+                debounceTimer: null,
+                
+                // Filters
+                filters: {
+                    checklist: {
+                        user_id: '',
+                        category: '',
+                        status: ''
+                    },
+                    locations: {
+                        user_id: ''
+                    },
+                    guides: {
+                        category: '',
+                        difficulty: '',
+                        is_read: ''
+                    },
+                    notifications: {
+                        user_id: '',
+                        type: '',
+                        is_read: '',
+                        sent: ''
+                    }
+                },
+                
+                // Modal state
+                modal: {
+                    show: false,
+                    mode: 'create', // 'create', 'edit', 'view'
+                    type: 'user', // 'user', 'checklist', 'location', 'guide', 'notification'
+                    title: '',
+                    data: {}
+                },
+                
+                // Toast state
+                toast: {
+                    show: false,
+                    type: 'success',
+                    message: '',
+                    timeout: null
+                },
+                
+                // Map instance
+                map: null,
+                markers: [],
+                detailMap: null,
+                modalMap: null,
+                
+                // Navigation
+                navigation: [
+                    { id: 'users', label: 'Users', icon: 'fas fa-users' },
+                    { id: 'checklist', label: 'Checklist Items', icon: 'fas fa-list-check' },
+                    { id: 'locations', label: 'User Locations', icon: 'fas fa-map-marker-alt' },
+                    { id: 'guides', label: 'Survival Guides', icon: 'fas fa-book' },
+                    { id: 'notifications', label: 'Notifications', icon: 'fas fa-bell' }
+                ],
+                
+                // Computed
+                get filteredData() {
+                    let data = this.getCurrentData();
+                    
+                    // Apply global search
+                    if (this.globalSearch) {
+                        const searchTerm = this.globalSearch.toLowerCase();
+                        data = data.filter(item => {
+                            if (this.currentPage === 'users') {
+                                return item.name.toLowerCase().includes(searchTerm) ||
+                                       item.email.toLowerCase().includes(searchTerm);
+                            } else if (this.currentPage === 'checklist') {
+                                return item.title.toLowerCase().includes(searchTerm) ||
+                                       (item.description && item.description.toLowerCase().includes(searchTerm)) ||
+                                       item.category.toLowerCase().includes(searchTerm);
+                            } else if (this.currentPage === 'locations') {
+                                const userName = this.getUserName(item.user_id).toLowerCase();
+                                return userName.includes(searchTerm) ||
+                                       item.lat.toString().includes(searchTerm) ||
+                                       item.lon.toString().includes(searchTerm);
+                            } else if (this.currentPage === 'guides') {
+                                return item.title.toLowerCase().includes(searchTerm) ||
+                                       item.content.toLowerCase().includes(searchTerm) ||
+                                       item.category.toLowerCase().includes(searchTerm);
+                            } else if (this.currentPage === 'notifications') {
+                                return item.title.toLowerCase().includes(searchTerm) ||
+                                       item.body.toLowerCase().includes(searchTerm) ||
+                                       item.type.toLowerCase().includes(searchTerm);
+                            }
+                            return true;
+                        });
+                    }
+                    
+                    // Apply specific filters
+                    if (this.currentPage === 'checklist') {
+                        if (this.filters.checklist.user_id) {
+                            data = data.filter(item => item.user_id == this.filters.checklist.user_id);
+                        }
+                        if (this.filters.checklist.category) {
+                            data = data.filter(item => item.category === this.filters.checklist.category);
+                        }
+                        if (this.filters.checklist.status) {
+                            if (this.filters.checklist.status === 'checked') {
+                                data = data.filter(item => item.is_checked);
+                            } else if (this.filters.checklist.status === 'unchecked') {
+                                data = data.filter(item => !item.is_checked);
+                            }
+                        }
+                    } else if (this.currentPage === 'locations') {
+                        if (this.filters.locations.user_id) {
+                            data = data.filter(item => item.user_id == this.filters.locations.user_id);
+                        }
+                    } else if (this.currentPage === 'guides') {
+                        if (this.filters.guides.category) {
+                            data = data.filter(item => item.category === this.filters.guides.category);
+                        }
+                        if (this.filters.guides.difficulty) {
+                            data = data.filter(item => item.difficulty === this.filters.guides.difficulty);
+                        }
+                        if (this.filters.guides.is_read !== '') {
+                            data = data.filter(item => item.is_read === (this.filters.guides.is_read === 'true'));
+                        }
+                    } else if (this.currentPage === 'notifications') {
+                        if (this.filters.notifications.user_id) {
+                            data = data.filter(item => item.user_id == this.filters.notifications.user_id);
+                        }
+                        if (this.filters.notifications.type) {
+                            data = data.filter(item => item.type === this.filters.notifications.type);
+                        }
+                        if (this.filters.notifications.is_read !== '') {
+                            data = data.filter(item => item.is_read === (this.filters.notifications.is_read === 'true'));
+                        }
+                        if (this.filters.notifications.sent !== '') {
+                            data = data.filter(item => item.sent === (this.filters.notifications.sent === 'true'));
+                        }
+                    }
+                    
+                    return data;
+                },
+                
+                // Methods
+                initDashboard() {
+                    this.generateMockData();
+                    if (this.currentPage === 'locations') {
+                        this.$nextTick(() => {
+                            this.initMap();
+                        });
+                    }
+                },
+                
+                generateMockData() {
+                    // Generate users
+                    this.users = [
+                        { id: 1, email: 'user1@example.com', password: 'hashed_password_1', name: 'John Doe', avatar: 'https://randomuser.me/api/portraits/men/32.jpg', push_token: 'push_token_1', created_at: '2023-10-15T08:30:00Z' },
+                        { id: 2, email: 'user2@example.com', password: 'hashed_password_2', name: 'Jane Smith', avatar: 'https://randomuser.me/api/portraits/women/44.jpg', push_token: 'push_token_2', created_at: '2023-10-16T09:15:00Z' },
+                        { id: 3, email: 'user3@example.com', password: 'hashed_password_3', name: 'Robert Johnson', avatar: 'https://randomuser.me/api/portraits/men/67.jpg', push_token: 'push_token_3', created_at: '2023-10-17T10:45:00Z' },
+                        { id: 4, email: 'user4@example.com', password: 'hashed_password_4', name: 'Emily Davis', avatar: 'https://randomuser.me/api/portraits/women/65.jpg', push_token: null, created_at: '2023-10-18T14:20:00Z' },
+                        { id: 5, email: 'user5@example.com', password: 'hashed_password_5', name: 'Michael Wilson', avatar: null, push_token: 'push_token_5', created_at: '2023-10-19T16:10:00Z' }
+                    ];
+                    
+                    // Generate checklist items
+                    this.checklist = [
+                        { id: 1, user_id: 1, title: 'First Aid Kit', category: 'supplies', description: 'Complete first aid kit with bandages, antiseptics, and medications', is_checked: true, created_at: '2023-10-20T08:30:00Z' },
+                        { id: 2, user_id: 1, title: 'Emergency Documents', category: 'documents', description: 'Passport, ID cards, insurance papers, and emergency contacts', is_checked: false, created_at: '2023-10-20T09:15:00Z' },
+                        { id: 3, user_id: 2, title: 'Water Supply', category: 'water', description: 'At least 3 gallons of water per person', is_checked: true, created_at: '2023-10-21T10:30:00Z' },
+                        { id: 4, user_id: 2, title: 'Non-perishable Food', category: 'food', description: 'Canned goods, energy bars, and dried fruits', is_checked: true, created_at: '2023-10-21T11:45:00Z' },
+                        { id: 5, user_id: 3, title: 'Emergency Radio', category: 'emergency', description: 'Hand-crank radio with weather alerts', is_checked: false, created_at: '2023-10-22T13:20:00Z' },
+                        { id: 6, user_id: 4, title: 'Tent and Sleeping Bags', category: 'shelter', description: 'Emergency shelter for 4 people', is_checked: true, created_at: '2023-10-23T15:10:00Z' },
+                        { id: 7, user_id: 5, title: 'Flashlight and Batteries', category: 'supplies', description: 'LED flashlight with extra batteries', is_checked: false, created_at: '2023-10-24T16:40:00Z' }
+                    ];
+                    
+                    // Generate user locations (Vietnam coordinates)
+                    this.locations = [
+                        { id: 1, user_id: 1, lat: 21.028511, lon: 105.804817, created_at: '2023-10-25T08:15:00Z' }, // Hanoi
+                        { id: 2, user_id: 2, lat: 10.823099, lon: 106.629662, created_at: '2023-10-25T09:30:00Z' }, // Ho Chi Minh City
+                        { id: 3, user_id: 3, lat: 16.054407, lon: 108.202164, created_at: '2023-10-25T10:45:00Z' }, // Da Nang
+                        { id: 4, user_id: 4, lat: 20.844912, lon: 106.688084, created_at: '2023-10-25T11:20:00Z' }, // Hai Phong
+                        { id: 5, user_id: 5, lat: 12.238791, lon: 109.196749, created_at: '2023-10-25T12:10:00Z' }, // Nha Trang
+                        { id: 6, user_id: 1, lat: 21.033333, lon: 105.849998, created_at: '2023-10-26T08:45:00Z' }, // Hanoi - updated
+                        { id: 7, user_id: 2, lat: 10.776889, lon: 106.700806, created_at: '2023-10-26T10:30:00Z' }  // Ho Chi Minh City - updated
+                    ];
+                    
+                    // Generate survival guides
+                    this.guides = [
+                        { id: 1, user_id: 1, title: 'Basic First Aid for Cuts and Wounds', category: 'first-aid', difficulty: 'easy', icon: '🩹', content: 'Clean the wound with clean water and soap. Apply antibiotic ointment and cover with a sterile bandage. Change dressing daily.', image_url: 'https://images.unsplash.com/photo-1559757148-5c350d0d3c56', views: 245, is_read: true, created_at: '2023-10-15T09:30:00Z' },
+                        { id: 2, user_id: 2, title: 'Building a Shelter in the Wilderness', category: 'shelter', difficulty: 'medium', icon: '🏕️', content: 'Find a level spot protected from wind. Use branches and leaves to create a lean-to structure. Ensure shelter is waterproof and insulated from ground.', image_url: 'https://images.unsplash.com/photo-1504851149312-7a075b496cc7', views: 189, is_read: false, created_at: '2023-10-16T11:15:00Z' },
+                        { id: 3, user_id: 3, title: 'Finding and Purifying Water', category: 'food', difficulty: 'easy', icon: '💧', content: 'Collect rainwater or find running water. Boil for at least 5 minutes or use water purification tablets. Avoid stagnant water sources.', image_url: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d', views: 312, is_read: true, created_at: '2023-10-17T14:20:00Z' },
+                        { id: 4, user_id: 4, title: 'Navigation Without a Compass', category: 'navigation', difficulty: 'hard', icon: '🧭', content: 'Use the sun and stars for direction. Moss typically grows on the north side of trees in the northern hemisphere. Create a makeshift sundial.', image_url: 'https://images.unsplash.com/photo-1536152471326-642d5cce63e6', views: 156, is_read: false, created_at: '2023-10-18T16:45:00Z' },
+                        { id: 5, user_id: 5, title: 'Starting a Fire Without Matches', category: 'fire', difficulty: 'medium', icon: '🔥', content: 'Use a fire plow, bow drill, or flint and steel. Gather tinder, kindling, and fuelwood. Build your fire structure before attempting to ignite.', image_url: 'https://images.unsplash.com/photo-1468818438311-4bab78121234', views: 278, is_read: true, created_at: '2023-10-19T10:10:00Z' },
+                        { id: 6, user_id: 1, title: 'Emergency Signaling Techniques', category: 'signaling', difficulty: 'easy', icon: '🆘', content: 'Use mirrors, bright clothing, or fire to signal for help. Create ground signals visible from air. Three of anything is a universal distress signal.', image_url: 'https://images.unsplash.com/photo-1558618666-fcd25c85cd64', views: 201, is_read: false, created_at: '2023-10-20T13:30:00Z' }
+                    ];
+                    
+                    // Generate notifications
+                    this.notifications = [
+                        { id: 1, user_id: 1, title: 'Checklist Reminder', body: 'Don\'t forget to check your emergency supplies this week', data: '{"type": "reminder", "checklist_id": 1}', type: 'push', is_read: true, sent: true, sent_at: '2023-10-25T09:00:00Z', created_at: '2023-10-24T14:30:00Z' },
+                        { id: 2, user_id: 2, title: 'New Survival Guide', body: 'A new guide "Water Purification Methods" is now available', data: '{"type": "new_guide", "guide_id": 3}', type: 'in_app', is_read: false, sent: true, sent_at: '2023-10-25T10:15:00Z', created_at: '2023-10-24T16:45:00Z' },
+                        { id: 3, user_id: 3, title: 'Weather Alert', body: 'Severe weather warning in your area. Please take precautions.', data: '{"type": "weather_alert", "severity": "high"}', type: 'both', is_read: true, sent: true, sent_at: '2023-10-26T07:30:00Z', created_at: '2023-10-25T18:20:00Z' },
+                        { id: 4, user_id: 4, title: 'Location Sharing', body: 'Your location is being shared with emergency contacts', data: '{"type": "location_share", "duration": "24h"}', type: 'push', is_read: false, sent: false, sent_at: null, created_at: '2023-10-26T09:45:00Z' },
+                        { id: 5, user_id: 5, title: 'Emergency Test', body: 'This is a test of the emergency notification system', data: '{"type": "test", "system": "emergency"}', type: 'both', is_read: true, sent: true, sent_at: '2023-10-26T11:00:00Z', created_at: '2023-10-25T20:10:00Z' },
+                        { id: 6, user_id: 1, title: 'App Update', body: 'New features available in the latest update. Please update now.', data: '{"type": "app_update", "version": "2.1.0"}', type: 'in_app', is_read: false, sent: false, sent_at: null, created_at: '2023-10-26T14:20:00Z' }
+                    ];
+                },
+                
+                getCurrentPageTitle() {
+                    const page = this.navigation.find(item => item.id === this.currentPage);
+                    return page ? page.label : 'Dashboard';
+                },
+                
+                getCurrentData() {
+                    switch (this.currentPage) {
+                        case 'users': return this.users;
+                        case 'checklist': return this.checklist;
+                        case 'locations': return this.locations;
+                        case 'guides': return this.guides;
+                        case 'notifications': return this.notifications;
+                        default: return [];
+                    }
+                },
+                
+                changePage(page) {
+                    this.currentPage = page;
+                    this.globalSearch = '';
+                    this.resetFilters();
+                    
+                    // Initialize map if on locations page
+                    if (page === 'locations') {
+                        this.$nextTick(() => {
+                            this.initMap();
+                        });
+                    }
+                },
+                
+                resetFilters() {
+                    this.filters = {
+                        checklist: {
+                            user_id: '',
+                            category: '',
+                            status: ''
+                        },
+                        locations: {
+                            user_id: ''
+                        },
+                        guides: {
+                            category: '',
+                            difficulty: '',
+                            is_read: ''
+                        },
+                        notifications: {
+                            user_id: '',
+                            type: '',
+                            is_read: '',
+                            sent: ''
+                        }
+                    };
+                },
+                
+                applyFilters() {
+                    // Filters are applied automatically in the computed property
+                },
+                
+                debounceSearch() {
+                    clearTimeout(this.debounceTimer);
+                    this.debounceTimer = setTimeout(() => {
+                        this.applyFilters();
+                    }, 300);
+                },
+                
+                getUserName(userId) {
+                    const user = this.users.find(u => u.id == userId);
+                    return user ? user.name : `User ${userId}`;
+                },
+                
+                formatDate(dateString) {
+                    if (!dateString) return 'N/A';
+                    const date = new Date(dateString);
+                    return date.toLocaleDateString('vi-VN') + ' ' + date.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+                },
+                
+                // Modal methods
+                openCreateModal() {
+                    let emptyData = {};
+                    if (this.currentPage === 'users') {
+                        emptyData = { email: '', password: '', name: '', avatar: '', push_token: '' };
+                        this.modal.type = 'user';
+                        this.modal.title = 'Thêm User mới';
+                    } else if (this.currentPage === 'checklist') {
+                        emptyData = { user_id: '', title: '', category: 'supplies', description: '', is_checked: false };
+                        this.modal.type = 'checklist';
+                        this.modal.title = 'Thêm Checklist Item mới';
+                    } else if (this.currentPage === 'guides') {
+                        emptyData = { user_id: '', title: '', category: 'first-aid', difficulty: 'easy', icon: '', content: '', image_url: '', views: 0, is_read: false };
+                        this.modal.type = 'guide';
+                        this.modal.title = 'Thêm Survival Guide mới';
+                    } else if (this.currentPage === 'notifications') {
+                        emptyData = { user_id: '', title: '', body: '', data: '', type: 'push', is_read: false, sent: false };
+                        this.modal.type = 'notification';
+                        this.modal.title = 'Thêm Notification mới';
+                    }
+                    
+                    this.modal.mode = 'create';
+                    this.modal.data = { ...emptyData };
+                    this.modal.show = true;
+                },
+                
+                viewItem(type, item) {
+                    this.modal.type = type;
+                    this.modal.mode = 'view';
+                    this.modal.data = { ...item };
+                    this.modal.show = true;
+                    
+                    if (type === 'location') {
+                        this.$nextTick(() => {
+                            this.initDetailMap();
+                        });
+                    }
+                },
+                
+                editItem(type, item) {
+                    this.modal.type = type;
+                    this.modal.mode = 'edit';
+                    this.modal.data = { ...item };
+                    this.modal.title = `Sửa ${this.getModalTypeName(type)}`;
+                    this.modal.show = true;
+                },
+                
+                getModalTypeName(type) {
+                    const names = {
+                        'user': 'User',
+                        'checklist': 'Checklist Item',
+                        'location': 'Location',
+                        'guide': 'Survival Guide',
+                        'notification': 'Notification'
+                    };
+                    return names[type] || 'Item';
+                },
+                
+                closeModal() {
+                    this.modal.show = false;
+                    this.modal.data = {};
+                    
+                    // Clean up maps
+                    if (this.detailMap) {
+                        this.detailMap.remove();
+                        this.detailMap = null;
+                    }
+                    if (this.modalMap) {
+                        this.modalMap.remove();
+                        this.modalMap = null;
+                    }
+                },
+                
+                saveItem() {
+                    // Generate new ID for create mode
+                    if (this.modal.mode === 'create') {
+                        const dataArray = this.getCurrentData();
+                        const maxId = dataArray.length > 0 ? Math.max(...dataArray.map(item => item.id)) : 0;
+                        this.modal.data.id = maxId + 1;
+                        this.modal.data.created_at = new Date().toISOString();
+                        
+                        // Add to appropriate array
+                        if (this.currentPage === 'users') {
+                            this.users.push({ ...this.modal.data });
+                        } else if (this.currentPage === 'checklist') {
+                            this.checklist.push({ ...this.modal.data });
+                        } else if (this.currentPage === 'guides') {
+                            this.guides.push({ ...this.modal.data });
+                        } else if (this.currentPage === 'notifications') {
+                            this.notifications.push({ ...this.modal.data });
+                        }
+                        
+                        this.showToast('Tạo mới thành công!', 'success');
+                    } else if (this.modal.mode === 'edit') {
+                        // Update existing item
+                        const dataArray = this.getCurrentData();
+                        const index = dataArray.findIndex(item => item.id === this.modal.data.id);
+                        if (index !== -1) {
+                            dataArray[index] = { ...this.modal.data };
+                            this.showToast('Cập nhật thành công!', 'success');
+                        }
+                    }
+                    
+                    this.closeModal();
+                },
+                
+                deleteItem(type, id) {
+                    if (!confirm('Bạn có chắc chắn muốn xóa mục này?')) return;
+                    
+                    let dataArray;
+                    switch (type) {
+                        case 'users': dataArray = this.users; break;
+                        case 'checklist': dataArray = this.checklist; break;
+                        case 'guides': dataArray = this.guides; break;
+                        case 'notifications': dataArray = this.notifications; break;
+                        default: return;
+                    }
+                    
+                    const index = dataArray.findIndex(item => item.id === id);
+                    if (index !== -1) {
+                        dataArray.splice(index, 1);
+                        this.showToast('Xóa thành công!', 'success');
+                    }
+                },
+                
+                toggleChecked(id) {
+                    const item = this.checklist.find(item => item.id === id);
+                    if (item) {
+                        item.is_checked = !item.is_checked;
+                        this.showToast(`Đã ${item.is_checked ? 'đánh dấu hoàn thành' : 'bỏ đánh dấu'}!`, 'success');
+                    }
+                },
+                
+                sendNotification(id) {
+                    const notification = this.notifications.find(n => n.id === id);
+                    if (notification) {
+                        notification.sent = true;
+                        notification.sent_at = new Date().toISOString();
+                        this.showToast('Đã gửi thông báo thành công!', 'success');
+                    }
+                },
+                
+                showToast(message, type = 'success') {
+                    this.toast.message = message;
+                    this.toast.type = type;
+                    this.toast.show = true;
+                    
+                    clearTimeout(this.toast.timeout);
+                    this.toast.timeout = setTimeout(() => {
+                        this.toast.show = false;
+                    }, 3000);
+                },
+                
+                // Map methods
+                initMap() {
+                    if (this.map) {
+                        this.map.remove();
+                        this.markers = [];
+                    }
+                    
+                    // Initialize map with Vietnam center
+                    this.map = L.map('map').setView([16.0, 108.0], 6);
+                    
+                    // Add tile layer
+                    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                        attribution: '© OpenStreetMap contributors'
+                    }).addTo(this.map);
+                    
+                    // Add markers
+                    this.updateMap();
+                },
+                
+                updateMap() {
+                    if (!this.map) return;
+                    
+                    // Clear existing markers
+                    this.markers.forEach(marker => marker.remove());
+                    this.markers = [];
+                    
+                    // Get filtered locations
+                    const locations = this.filteredData;
+                    
+                    if (locations.length === 0) return;
+                    
+                    // Create bounds for all markers
+                    const bounds = L.latLngBounds([]);
+                    
+                    // Add markers for each location
+                    locations.forEach(loc => {
+                        const user = this.users.find(u => u.id === loc.user_id);
+                        const userName = user ? user.name : `User ${loc.user_id}`;
+                        
+                        const marker = L.marker([loc.lat, loc.lon])
+                            .addTo(this.map)
+                            .bindPopup(`
+                                <div class="p-2">
+                                    <strong>${userName}</strong><br>
+                                    Lat: ${loc.lat.toFixed(6)}<br>
+                                    Lon: ${loc.lon.toFixed(6)}<br>
+                                    Time: ${this.formatDate(loc.created_at)}
+                                </div>
+                            `);
+                        
+                        this.markers.push(marker);
+                        bounds.extend([loc.lat, loc.lon]);
+                    });
+                    
+                    // Fit map to bounds
+                    this.map.fitBounds(bounds, { padding: [50, 50] });
+                },
+                
+                focusLocation(loc) {
+                    if (!this.map) return;
+                    
+                    const user = this.users.find(u => u.id === loc.user_id);
+                    const userName = user ? user.name : `User ${loc.user_id}`;
+                    
+                    // Find and open popup for this location
+                    this.markers.forEach(marker => {
+                        const markerLatLng = marker.getLatLng();
+                        if (markerLatLng.lat === loc.lat && markerLatLng.lng === loc.lon) {
+                            marker.openPopup();
+                        }
+                    });
+                    
+                    // Pan to location
+                    this.map.panTo([loc.lat, loc.lon], {
+                        animate: true,
+                        duration: 0.5
+                    });
+                },
+                
+                initDetailMap() {
+                    if (!this.modal.data.lat || !this.modal.data.lon) return;
+                    
+                    this.$nextTick(() => {
+                        if (this.detailMap) {
+                            this.detailMap.remove();
+                        }
+                        
+                        this.detailMap = L.map('detail-map').setView([this.modal.data.lat, this.modal.data.lon], 13);
+                        
+                        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                            attribution: '© OpenStreetMap contributors'
+                        }).addTo(this.detailMap);
+                        
+                        L.marker([this.modal.data.lat, this.modal.data.lon])
+                            .addTo(this.detailMap)
+                            .bindPopup(`<strong>${this.getUserName(this.modal.data.user_id)}</strong><br>Lat: ${this.modal.data.lat.toFixed(6)}<br>Lon: ${this.modal.data.lon.toFixed(6)}`)
+                            .openPopup();
+                    });
+                }
+            };
+        }
+    </script>
+</body>
+</html>
