@@ -1,2 +1,1 @@
-# SurvivalPro-Backend
-SurvivalPro-Backend
+# SurvivalPro

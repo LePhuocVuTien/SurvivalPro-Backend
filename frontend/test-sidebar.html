@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Giữ defer -->
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+</head>
+<body>
+    <div x-data="testApp()" class="p-8">
+        <h1 x-text="message" class="text-3xl font-bold mb-4"></h1>
+        <button @click="changeMessage()" 
+                class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600">
+            Click me!
+        </button>
+        <p x-text="counter" class="mt-4 text-xl"></p>
+    </div>
+    
+    <script>
+        function testApp() {
+            return {
+                message: 'Alpine.js works! 🎉',
+                counter: 0,
+                
+                init() {
+                    console.log('✅ Alpine initialized');
+                    console.log('✅ Alpine version:', Alpine.version);
+                },
+                
+                changeMessage() {
+                    this.counter++;
+                    this.message = `Clicked ${this.counter} times!`;
+                }
+            }
+        }
+    </script>
+</body>
+</html>

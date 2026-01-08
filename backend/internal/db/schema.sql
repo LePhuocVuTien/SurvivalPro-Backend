@@ -1,9 +1,9 @@
  
--- DROP TABLE IF EXISTS notifications;
--- DROP TABLE IF EXISTS survival_guides;
--- DROP TABLE IF EXISTS user_location;
--- DROP TABLE IF EXISTS checklist_items;
--- DROP TABLE IF EXISTS users;
+DROP TABLE IF EXISTS notifications;
+DROP TABLE IF EXISTS survival_guides;
+DROP TABLE IF EXISTS user_location;
+DROP TABLE IF EXISTS checklist_items;
+DROP TABLE IF EXISTS users;
 
 -- USER
 CREATE TABLE IF NOT EXISTS users (
