@@ -185,7 +185,7 @@ func MustLoad() {
 func loadAppConfig(cfg *AppConfig) error {
 	cfg.Env = getEnvOrDefault("APP_ENV", "development")
 	cfg.Port = getEnvOrDefault("PORT", "8080")
-	cfg.Name = getEnvOrDefault("APP_NAME", "SurvivalKit")
+	cfg.Name = getEnvOrDefault("APP_NAME", "SurvivalKitAPI")
 	cfg.Version = getEnvOrDefault("APP_VERSION", "1.0.0")
 	cfg.Debug = getBoolEnv("APP_DEBUG", cfg.Env == "development")
 	cfg.BaseURL = getEnvOrDefault("APP_BASE_URL", "http://localhost:"+cfg.Port)
@@ -218,15 +218,8 @@ func loadDatabaseConfig(cfg *DatabaseConfig) error {
 		// Extract sslmode from query params
 		query := parsed.Query()
 		cfg.SSLMode = query.Get("sslmode")
-		// if cfg.SSLMode == "" {
-		// 	cfg.SSLMode = "require"
-		// }
 		if cfg.SSLMode == "" {
-			if os.Getenv("APP_ENV") == "production" {
-				cfg.SSLMode = "require"
-			} else {
-				cfg.SSLMode = "disable"
-			}
+			cfg.SSLMode = "require"
 		}
 	} else {
 		// Option 2: Build from individual variables

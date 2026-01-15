@@ -4,16 +4,13 @@ go 1.24.0
 
 toolchain go1.24.11
 
-require (
-	github.com/redis/go-redis/v9 v9.17.2
-	golang.org/x/time v0.14.0
-)
-
-require github.com/gorilla/mux v1.8.1
+require github.com/redis/go-redis/v9 v9.17.2
 
 require (
 	github.com/andybalholm/brotli v1.1.0 // indirect
+	github.com/gofiber/utils v0.0.10 // indirect
 	github.com/google/uuid v1.6.0 // indirect
+	github.com/gorilla/schema v1.1.0 // indirect
 	github.com/klauspost/compress v1.17.9 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
@@ -28,11 +25,8 @@ require (
 require (
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
-	github.com/go-redis/redis v6.15.9+incompatible
+	github.com/gofiber/fiber v1.14.6
 	github.com/gofiber/fiber/v2 v2.52.10
-	github.com/golang-jwt/jwt/v4 v4.5.2
 	github.com/joho/godotenv v1.5.1
 	github.com/lib/pq v1.10.9
-	golang.org/x/crypto v0.46.0
-	gorm.io/gorm v1.31.1
 )

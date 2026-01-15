@@ -136,7 +136,7 @@ func RequireActiveAccount() fiber.Handler {
 			})
 		}
 
-		if !user.CanLogin() {
+		if err := user.CanLogin(); err != nil {
 			return c.Status(fiber.StatusForbidden).JSON(fiber.Map{
 				"error":  "Account is not active",
 				"status": user.AccountStatus,

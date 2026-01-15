@@ -15,18 +15,48 @@ CREATE EXTENSION IF NOT EXISTS "btree_gin"; -- For GIN indexes
 -- ============================================================================
 -- CUSTOM TYPES
 -- ============================================================================
-CREATE TYPE user_role AS ENUM ('admin', 'leader', 'user');
-CREATE TYPE account_status_type AS ENUM ('pending', 'active', 'suspended', 'banned', 'closed');
-CREATE TYPE severity_type AS ENUM ('low', 'medium', 'high', 'critical');
-CREATE TYPE social_provider AS ENUM ('google', 'facebook', 'apple');
-CREATE TYPE platform_type AS ENUM ('ios', 'android', 'web');
-CREATE TYPE theme_type AS ENUM ('light', 'dark', 'auto');
-CREATE TYPE email_status AS ENUM ('pending', 'sending', 'sent', 'failed');
+DO $$
+BEGIN
+    -- user_role
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'user_role') THEN
+        CREATE TYPE user_role AS ENUM ('admin', 'leader', 'user');
+    END IF;
+
+    -- account_status_type
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'account_status_type') THEN
+        CREATE TYPE account_status_type AS ENUM ('pending', 'active', 'suspended', 'banned', 'closed');
+    END IF;
+
+    -- severity_type
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'severity_type') THEN
+        CREATE TYPE severity_type AS ENUM ('low', 'medium', 'high', 'critical');
+    END IF;
+
+    -- social_provider
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'social_provider') THEN
+        CREATE TYPE social_provider AS ENUM ('google', 'facebook', 'apple');
+    END IF;
+
+    -- platform_type
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'platform_type') THEN
+        CREATE TYPE platform_type AS ENUM ('ios', 'android', 'web');
+    END IF;
+
+    -- theme_type
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'theme_type') THEN
+        CREATE TYPE theme_type AS ENUM ('light', 'dark', 'auto');
+    END IF;
+
+    -- email_status
+    IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'email_status') THEN
+        CREATE TYPE email_status AS ENUM ('pending', 'sending', 'sent', 'failed');
+    END IF;
+END $$;
 
 -- ============================================================================
 -- USERS TABLE (Core Entity)
 -- ============================================================================
-CREATE TABLE users (
+CREATE TABLE IF NOT EXISTS users (
     id SERIAL PRIMARY KEY,
     email VARCHAR(255) UNIQUE NOT NULL,
     name VARCHAR(100) NOT NULL,
@@ -72,23 +102,23 @@ CREATE TABLE users (
 );
 
 -- Indexes for users table
-CREATE INDEX idx_users_email ON users(email);
-CREATE INDEX idx_users_role ON users(role);
-CREATE INDEX idx_users_account_status ON users(account_status);
-CREATE INDEX idx_users_deleted_at ON users(deleted_at);
-CREATE INDEX idx_users_created_at ON users(created_at);
-CREATE INDEX idx_users_email_verified ON users(email_verified);
-CREATE INDEX idx_users_phone ON users(phone);
-CREATE INDEX idx_users_last_active_at ON users(last_active_at);
+CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+CREATE INDEX IF NOT EXISTS idx_users_role ON users(role);
+CREATE INDEX IF NOT EXISTS idx_users_account_status ON users(account_status);
+CREATE INDEX IF NOT EXISTS idx_users_deleted_at ON users(deleted_at);
+CREATE INDEX IF NOT EXISTS idx_users_created_at ON users(created_at);
+CREATE INDEX IF NOT EXISTS idx_users_email_verified ON users(email_verified);
+CREATE INDEX IF NOT EXISTS idx_users_phone ON users(phone);
+CREATE INDEX IF NOT EXISTS idx_users_last_active_at ON users(last_active_at);
 
 -- Full-text search indexes
-CREATE INDEX idx_users_name_gin ON users USING gin(to_tsvector('english', name));
-CREATE INDEX idx_users_email_gin ON users USING gin(to_tsvector('english', email));
+CREATE INDEX IF NOT EXISTS idx_users_name_gin ON users USING gin(to_tsvector('english', name));
+CREATE INDEX IF NOT EXISTS idx_users_email_gin ON users USING gin(to_tsvector('english', email));
 
 -- ============================================================================
 -- USER CREDENTIALS (Separated for Security)
 -- ============================================================================
-CREATE TABLE user_credentials (
+CREATE TABLE IF NOT EXISTS user_credentials (
     id SERIAL PRIMARY KEY,
     user_id INT UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     password_hash VARCHAR(255),
@@ -111,13 +141,13 @@ CREATE TABLE user_credentials (
     deleted_by INT REFERENCES users(id) ON DELETE SET NULL
 );
 
-CREATE INDEX idx_credentials_user_id ON user_credentials(user_id);
-CREATE INDEX idx_credentials_must_change ON user_credentials(must_change_password);
+CREATE INDEX IF NOT EXISTS idx_credentials_user_id ON user_credentials(user_id);
+CREATE INDEX IF NOT EXISTS idx_credentials_must_change ON user_credentials(must_change_password);
 
 -- ============================================================================
 -- USER SECURITY INFO (Separated for Performance)
 -- ============================================================================
-CREATE TABLE user_security_info (
+CREATE TABLE IF NOT EXISTS user_security_info (
     id SERIAL PRIMARY KEY,
     user_id INT UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     
@@ -143,27 +173,27 @@ CREATE TABLE user_security_info (
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_security_info_user_id ON user_security_info(user_id);
-CREATE INDEX idx_security_info_locked_until ON user_security_info(locked_until);
-CREATE INDEX idx_security_info_security_score ON user_security_info(security_score);
+CREATE INDEX IF NOT EXISTS idx_security_info_user_id ON user_security_info(user_id);
+CREATE INDEX IF NOT EXISTS idx_security_info_locked_until ON user_security_info(locked_until);
+CREATE INDEX IF NOT EXISTS idx_security_info_security_score ON user_security_info(security_score);
 
 -- ============================================================================
 -- PASSWORD HISTORY
 -- ============================================================================
-CREATE TABLE password_history (
+CREATE TABLE IF NOT EXISTS password_history (
     id SERIAL PRIMARY KEY,
     user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     password_hash VARCHAR(255) NOT NULL,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_password_history_user_id ON password_history(user_id);
-CREATE INDEX idx_password_history_created_at ON password_history(created_at);
+CREATE INDEX IF NOT EXISTS idx_password_history_user_id ON password_history(user_id);
+CREATE INDEX IF NOT EXISTS idx_password_history_created_at ON password_history(created_at);
 
 -- ============================================================================
 -- PASSWORD RESET TOKENS
 -- ============================================================================
-CREATE TABLE password_reset_tokens (
+CREATE TABLE IF NOT EXISTS password_reset_tokens (
     id SERIAL PRIMARY KEY,
     user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     token VARCHAR(255) UNIQUE NOT NULL,
@@ -178,15 +208,15 @@ CREATE TABLE password_reset_tokens (
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_password_reset_user_id ON password_reset_tokens(user_id);
-CREATE INDEX idx_password_reset_token ON password_reset_tokens(token);
-CREATE INDEX idx_password_reset_expires_at ON password_reset_tokens(expires_at);
-CREATE INDEX idx_password_reset_used_at ON password_reset_tokens(used_at);
+CREATE INDEX IF NOT EXISTS idx_password_reset_user_id ON password_reset_tokens(user_id);
+CREATE INDEX IF NOT EXISTS idx_password_reset_token ON password_reset_tokens(token);
+CREATE INDEX IF NOT EXISTS idx_password_reset_expires_at ON password_reset_tokens(expires_at);
+CREATE INDEX IF NOT EXISTS idx_password_reset_used_at ON password_reset_tokens(used_at);
 
 -- ============================================================================
 -- EMAIL VERIFICATION TOKENS
 -- ============================================================================
-CREATE TABLE email_verification_tokens (
+CREATE TABLE IF NOT EXISTS email_verification_tokens (
     id SERIAL PRIMARY KEY,
     user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     email VARCHAR(255) NOT NULL, -- Support for email change verification
@@ -202,15 +232,15 @@ CREATE TABLE email_verification_tokens (
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_email_token_user_id ON email_verification_tokens(user_id);
-CREATE INDEX idx_email_token_token ON email_verification_tokens(token);
-CREATE INDEX idx_email_token_expires_at ON email_verification_tokens(expires_at);
-CREATE INDEX idx_email_token_email ON email_verification_tokens(email);
+CREATE INDEX IF NOT EXISTS idx_email_token_user_id ON email_verification_tokens(user_id);
+CREATE INDEX IF NOT EXISTS idx_email_token_token ON email_verification_tokens(token);
+CREATE INDEX IF NOT EXISTS idx_email_token_expires_at ON email_verification_tokens(expires_at);
+CREATE INDEX IF NOT EXISTS idx_email_token_email ON email_verification_tokens(email);
 
 -- ============================================================================
 -- PHONE VERIFICATION
 -- ============================================================================
-CREATE TABLE phone_verification_codes (
+CREATE TABLE IF NOT EXISTS phone_verification_codes (
     id SERIAL PRIMARY KEY,
     user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     phone VARCHAR(20) NOT NULL,
@@ -227,14 +257,14 @@ CREATE TABLE phone_verification_codes (
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_phone_verification_user_id ON phone_verification_codes(user_id);
-CREATE INDEX idx_phone_verification_phone ON phone_verification_codes(phone);
-CREATE INDEX idx_phone_verification_expires_at ON phone_verification_codes(expires_at);
+CREATE INDEX IF NOT EXISTS idx_phone_verification_user_id ON phone_verification_codes(user_id);
+CREATE INDEX IF NOT EXISTS idx_phone_verification_phone ON phone_verification_codes(phone);
+CREATE INDEX IF NOT EXISTS idx_phone_verification_expires_at ON phone_verification_codes(expires_at);
 
 -- ============================================================================
 -- SOCIAL AUTHENTICATION
 -- ============================================================================
-CREATE TABLE user_social_auth (
+CREATE TABLE IF NOT EXISTS user_social_auth (
     id SERIAL PRIMARY KEY,
     user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     provider social_provider NOT NULL,
@@ -261,14 +291,14 @@ CREATE TABLE user_social_auth (
     UNIQUE(provider, provider_user_id)
 );
 
-CREATE INDEX idx_social_auth_user_id ON user_social_auth(user_id);
-CREATE INDEX idx_social_auth_provider ON user_social_auth(provider);
-CREATE INDEX idx_social_auth_provider_user_id ON user_social_auth(provider_user_id);
+CREATE INDEX IF NOT EXISTS idx_social_auth_user_id ON user_social_auth(user_id);
+CREATE INDEX IF NOT EXISTS idx_social_auth_provider ON user_social_auth(provider);
+CREATE INDEX IF NOT EXISTS idx_social_auth_provider_user_id ON user_social_auth(provider_user_id);
 
 -- ============================================================================
 -- TWO-FACTOR BACKUP CODES
 -- ============================================================================
-CREATE TABLE two_factor_backup_codes (
+CREATE TABLE IF NOT EXISTS two_factor_backup_codes (
     id SERIAL PRIMARY KEY,
     user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     code_hash VARCHAR(255) NOT NULL, -- Hashed
@@ -276,13 +306,13 @@ CREATE TABLE two_factor_backup_codes (
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_2fa_backup_user_id ON two_factor_backup_codes(user_id);
-CREATE INDEX idx_2fa_backup_used_at ON two_factor_backup_codes(used_at);
+CREATE INDEX IF NOT EXISTS idx_2fa_backup_user_id ON two_factor_backup_codes(user_id);
+CREATE INDEX IF NOT EXISTS idx_2fa_backup_used_at ON two_factor_backup_codes(used_at);
 
 -- ============================================================================
 -- USER SESSIONS
 -- ============================================================================
-CREATE TABLE user_sessions (
+CREATE TABLE IF NOT EXISTS user_sessions (
     id SERIAL PRIMARY KEY,
     user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     session_token VARCHAR(255) UNIQUE NOT NULL,
@@ -312,18 +342,18 @@ CREATE TABLE user_sessions (
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_sessions_user_id ON user_sessions(user_id);
-CREATE INDEX idx_sessions_session_token ON user_sessions(session_token);
-CREATE INDEX idx_sessions_refresh_token ON user_sessions(refresh_token);
-CREATE INDEX idx_sessions_expires_at ON user_sessions(expires_at);
-CREATE INDEX idx_sessions_revoked_at ON user_sessions(revoked_at);
-CREATE INDEX idx_sessions_device_id ON user_sessions(device_id);
-CREATE INDEX idx_sessions_last_used_at ON user_sessions(last_used_at);
+CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON user_sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_sessions_session_token ON user_sessions(session_token);
+CREATE INDEX IF NOT EXISTS idx_sessions_refresh_token ON user_sessions(refresh_token);
+CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON user_sessions(expires_at);
+CREATE INDEX IF NOT EXISTS idx_sessions_revoked_at ON user_sessions(revoked_at);
+CREATE INDEX IF NOT EXISTS idx_sessions_device_id ON user_sessions(device_id);
+CREATE INDEX IF NOT EXISTS idx_sessions_last_used_at ON user_sessions(last_used_at);
 
 -- ============================================================================
 -- PUSH TOKENS (Separated from User - One user, multiple devices)
 -- ============================================================================
-CREATE TABLE user_push_tokens (
+CREATE TABLE IF NOT EXISTS user_push_tokens (
     id SERIAL PRIMARY KEY,
     user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     token TEXT NOT NULL,
@@ -346,15 +376,15 @@ CREATE TABLE user_push_tokens (
     UNIQUE(user_id, device_id, platform)
 );
 
-CREATE INDEX idx_push_tokens_user_id ON user_push_tokens(user_id);
-CREATE INDEX idx_push_tokens_device_id ON user_push_tokens(device_id);
-CREATE INDEX idx_push_tokens_is_active ON user_push_tokens(is_active);
-CREATE INDEX idx_push_tokens_platform ON user_push_tokens(platform);
+CREATE INDEX IF NOT EXISTS idx_push_tokens_user_id ON user_push_tokens(user_id);
+CREATE INDEX IF NOT EXISTS idx_push_tokens_device_id ON user_push_tokens(device_id);
+CREATE INDEX IF NOT EXISTS idx_push_tokens_is_active ON user_push_tokens(is_active);
+CREATE INDEX IF NOT EXISTS idx_push_tokens_platform ON user_push_tokens(platform);
 
 -- ============================================================================
 -- USER PREFERENCES
 -- ============================================================================
-CREATE TABLE user_preferences (
+CREATE TABLE IF NOT EXISTS user_preferences (
     id SERIAL PRIMARY KEY,
     user_id INT UNIQUE NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     
@@ -391,12 +421,12 @@ CREATE TABLE user_preferences (
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_preferences_user_id ON user_preferences(user_id);
+CREATE INDEX IF NOT EXISTS idx_preferences_user_id ON user_preferences(user_id);
 
 -- ============================================================================
 -- USER CONSENTS (GDPR Compliance)
 -- ============================================================================
-CREATE TABLE user_consents (
+CREATE TABLE IF NOT EXISTS user_consents (
     id SERIAL PRIMARY KEY,
     user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     consent_type VARCHAR(50) NOT NULL, -- 'terms', 'privacy', 'marketing', 'data_processing'
@@ -414,54 +444,54 @@ CREATE TABLE user_consents (
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_consents_user_id ON user_consents(user_id);
-CREATE INDEX idx_consents_type ON user_consents(consent_type);
-CREATE INDEX idx_consents_granted ON user_consents(granted);
-CREATE INDEX idx_consents_created_at ON user_consents(created_at);
+CREATE INDEX IF NOT EXISTS idx_consents_user_id ON user_consents(user_id);
+CREATE INDEX IF NOT EXISTS idx_consents_type ON user_consents(consent_type);
+CREATE INDEX IF NOT EXISTS idx_consents_granted ON user_consents(granted);
+CREATE INDEX IF NOT EXISTS idx_consents_created_at ON user_consents(created_at);
 
 -- ============================================================================
 -- LOGIN ACTIVITY (Audit)
 -- ============================================================================
-CREATE TABLE login_activity (
-    id SERIAL PRIMARY KEY,
+CREATE TABLE IF NOT EXISTS login_activity (
+    id SERIAL,
     user_id INT REFERENCES users(id) ON DELETE CASCADE,
     email VARCHAR(255) NOT NULL,
     success BOOLEAN NOT NULL,
-    
-    -- Location & device
+
     ip_address VARCHAR(50) NOT NULL,
     user_agent TEXT,
     location VARCHAR(255),
     latitude DECIMAL(10, 8),
     longitude DECIMAL(11, 8),
     device_info JSONB,
-    
-    -- Details
-    reason TEXT, -- For failed attempts
+
+    reason TEXT,
     session_id INT REFERENCES user_sessions(id) ON DELETE SET NULL,
-    
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    PRIMARY KEY (id, created_at)
 ) PARTITION BY RANGE (created_at);
 
 -- Create partitions for login_activity (last 6 months + current month)
-CREATE TABLE login_activity_2026_01 PARTITION OF login_activity
+CREATE TABLE IF NOT EXISTS login_activity_2026_01 PARTITION OF login_activity
     FOR VALUES FROM ('2026-01-01') TO ('2026-02-01');
-CREATE TABLE login_activity_2026_02 PARTITION OF login_activity
+CREATE TABLE IF NOT EXISTS login_activity_2026_02 PARTITION OF login_activity
     FOR VALUES FROM ('2026-02-01') TO ('2026-03-01');
-CREATE TABLE login_activity_2026_03 PARTITION OF login_activity
+CREATE TABLE IF NOT EXISTS login_activity_2026_03 PARTITION OF login_activity
     FOR VALUES FROM ('2026-03-01') TO ('2026-04-01');
 
-CREATE INDEX idx_login_activity_user_id ON login_activity(user_id);
-CREATE INDEX idx_login_activity_email ON login_activity(email);
-CREATE INDEX idx_login_activity_created_at ON login_activity(created_at);
-CREATE INDEX idx_login_activity_success ON login_activity(success);
-CREATE INDEX idx_login_activity_ip_address ON login_activity(ip_address);
+CREATE INDEX IF NOT EXISTS idx_login_activity_user_id ON login_activity(user_id);
+CREATE INDEX IF NOT EXISTS idx_login_activity_email ON login_activity(email);
+CREATE INDEX IF NOT EXISTS idx_login_activity_created_at ON login_activity(created_at);
+CREATE INDEX IF NOT EXISTS idx_login_activity_success ON login_activity(success);
+CREATE INDEX IF NOT EXISTS idx_login_activity_ip_address ON login_activity(ip_address);
 
 -- ============================================================================
 -- USER ACTIVITY LOG (General Audit)
 -- ============================================================================
-CREATE TABLE user_activity_log (
-    id SERIAL PRIMARY KEY,
+CREATE TABLE IF NOT EXISTS user_activity_log (
+    id SERIAL,
     user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     action VARCHAR(100) NOT NULL, -- 'created', 'updated', 'deleted', 'viewed'
     entity VARCHAR(50) NOT NULL, -- 'user', 'appointment', 'prescription'
@@ -479,22 +509,22 @@ CREATE TABLE user_activity_log (
 ) PARTITION BY RANGE (created_at);
 
 -- Create partitions for user_activity_log
-CREATE TABLE user_activity_log_2026_01 PARTITION OF user_activity_log
+CREATE TABLE IF NOT EXISTS user_activity_log_2026_01 PARTITION OF user_activity_log
     FOR VALUES FROM ('2026-01-01') TO ('2026-02-01');
-CREATE TABLE user_activity_log_2026_02 PARTITION OF user_activity_log
+CREATE TABLE IF NOT EXISTS user_activity_log_2026_02 PARTITION OF user_activity_log
     FOR VALUES FROM ('2026-02-01') TO ('2026-03-01');
-CREATE TABLE user_activity_log_2026_03 PARTITION OF user_activity_log
+CREATE TABLE IF NOT EXISTS user_activity_log_2026_03 PARTITION OF user_activity_log
     FOR VALUES FROM ('2026-03-01') TO ('2026-04-01');
 
-CREATE INDEX idx_activity_log_user_id ON user_activity_log(user_id);
-CREATE INDEX idx_activity_log_action ON user_activity_log(action);
-CREATE INDEX idx_activity_log_entity ON user_activity_log(entity);
-CREATE INDEX idx_activity_log_created_at ON user_activity_log(created_at);
+CREATE INDEX IF NOT EXISTS idx_activity_log_user_id ON user_activity_log(user_id);
+CREATE INDEX IF NOT EXISTS idx_activity_log_action ON user_activity_log(action);
+CREATE INDEX IF NOT EXISTS idx_activity_log_entity ON user_activity_log(entity);
+CREATE INDEX IF NOT EXISTS idx_activity_log_created_at ON user_activity_log(created_at);
 
 -- ============================================================================
 -- SECURITY EVENTS
 -- ============================================================================
-CREATE TABLE security_events (
+CREATE TABLE IF NOT EXISTS security_events (
     id SERIAL PRIMARY KEY,
     user_id INT REFERENCES users(id) ON DELETE CASCADE,
     event_type VARCHAR(100) NOT NULL, -- 'suspicious_login', 'password_reset', 'account_lockout'
@@ -516,16 +546,16 @@ CREATE TABLE security_events (
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_security_events_user_id ON security_events(user_id);
-CREATE INDEX idx_security_events_event_type ON security_events(event_type);
-CREATE INDEX idx_security_events_severity ON security_events(severity);
-CREATE INDEX idx_security_events_resolved ON security_events(resolved);
-CREATE INDEX idx_security_events_created_at ON security_events(created_at);
+CREATE INDEX IF NOT EXISTS idx_security_events_user_id ON security_events(user_id);
+CREATE INDEX IF NOT EXISTS idx_security_events_event_type ON security_events(event_type);
+CREATE INDEX IF NOT EXISTS idx_security_events_severity ON security_events(severity);
+CREATE INDEX IF NOT EXISTS idx_security_events_resolved ON security_events(resolved);
+CREATE INDEX IF NOT EXISTS idx_security_events_created_at ON security_events(created_at);
 
 -- ============================================================================
 -- ACCOUNT STATUS CHANGES (Audit)
 -- ============================================================================
-CREATE TABLE account_status_changes (
+CREATE TABLE IF NOT EXISTS account_status_changes (
     id SERIAL PRIMARY KEY,
     user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     old_status account_status_type NOT NULL,
@@ -536,14 +566,14 @@ CREATE TABLE account_status_changes (
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_status_changes_user_id ON account_status_changes(user_id);
-CREATE INDEX idx_status_changes_changed_by ON account_status_changes(changed_by);
-CREATE INDEX idx_status_changes_created_at ON account_status_changes(created_at);
+CREATE INDEX IF NOT EXISTS idx_status_changes_user_id ON account_status_changes(user_id);
+CREATE INDEX IF NOT EXISTS idx_status_changes_changed_by ON account_status_changes(changed_by);
+CREATE INDEX IF NOT EXISTS idx_status_changes_created_at ON account_status_changes(created_at);
 
 -- ============================================================================
 -- RATE LIMITING
 -- ============================================================================
-CREATE TABLE rate_limit_rules (
+CREATE TABLE IF NOT EXISTS rate_limit_rules (
     id SERIAL PRIMARY KEY,
     action VARCHAR(100) UNIQUE NOT NULL,
     max_attempts INT NOT NULL,
@@ -555,7 +585,7 @@ CREATE TABLE rate_limit_rules (
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE rate_limit_log (
+CREATE TABLE IF NOT EXISTS rate_limit_log (
     id SERIAL PRIMARY KEY,
     identifier VARCHAR(255) NOT NULL, -- IP, user_id, email
     action VARCHAR(100) NOT NULL,
@@ -568,15 +598,15 @@ CREATE TABLE rate_limit_log (
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_rate_limit_identifier ON rate_limit_log(identifier);
-CREATE INDEX idx_rate_limit_action ON rate_limit_log(action);
-CREATE INDEX idx_rate_limit_window_end ON rate_limit_log(window_end);
-CREATE INDEX idx_rate_limit_blocked ON rate_limit_log(blocked);
+CREATE INDEX IF NOT EXISTS idx_rate_limit_identifier ON rate_limit_log(identifier);
+CREATE INDEX IF NOT EXISTS idx_rate_limit_action ON rate_limit_log(action);
+CREATE INDEX IF NOT EXISTS idx_rate_limit_window_end ON rate_limit_log(window_end);
+CREATE INDEX IF NOT EXISTS idx_rate_limit_blocked ON rate_limit_log(blocked);
 
 -- ============================================================================
 -- EMAIL QUEUE
 -- ============================================================================
-CREATE TABLE email_queue (
+CREATE TABLE IF NOT EXISTS email_queue (
     id SERIAL PRIMARY KEY,
     user_id INT REFERENCES users(id) ON DELETE SET NULL,
     to_email VARCHAR(255) NOT NULL,
@@ -608,15 +638,15 @@ CREATE TABLE email_queue (
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_email_queue_status ON email_queue(status);
-CREATE INDEX idx_email_queue_created_at ON email_queue(created_at);
-CREATE INDEX idx_email_queue_next_attempt_at ON email_queue(next_attempt_at);
-CREATE INDEX idx_email_queue_priority ON email_queue(priority);
+CREATE INDEX IF NOT EXISTS idx_email_queue_status ON email_queue(status);
+CREATE INDEX IF NOT EXISTS idx_email_queue_created_at ON email_queue(created_at);
+CREATE INDEX IF NOT EXISTS idx_email_queue_next_attempt_at ON email_queue(next_attempt_at);
+CREATE INDEX IF NOT EXISTS idx_email_queue_priority ON email_queue(priority);
 
 -- ============================================================================
 -- API KEYS (For API Access)
 -- ============================================================================
-CREATE TABLE api_keys (
+CREATE TABLE IF NOT EXISTS api_keys (
     id SERIAL PRIMARY KEY,
     user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     key_hash VARCHAR(255) UNIQUE NOT NULL,
@@ -640,15 +670,15 @@ CREATE TABLE api_keys (
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_api_keys_user_id ON api_keys(user_id);
-CREATE INDEX idx_api_keys_key_hash ON api_keys(key_hash);
-CREATE INDEX idx_api_keys_key_prefix ON api_keys(key_prefix);
-CREATE INDEX idx_api_keys_expires_at ON api_keys(expires_at);
+CREATE INDEX IF NOT EXISTS idx_api_keys_user_id ON api_keys(user_id);
+CREATE INDEX IF NOT EXISTS idx_api_keys_key_hash ON api_keys(key_hash);
+CREATE INDEX IF NOT EXISTS idx_api_keys_key_prefix ON api_keys(key_prefix);
+CREATE INDEX IF NOT EXISTS idx_api_keys_expires_at ON api_keys(expires_at);
 
 -- ============================================================================
 -- NOTIFICATIONS
 -- ============================================================================
-CREATE TABLE notifications (
+CREATE TABLE IF NOT EXISTS notifications (
     id SERIAL PRIMARY KEY,
     user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     
@@ -676,15 +706,15 @@ CREATE TABLE notifications (
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_notifications_user_id ON notifications(user_id);
-CREATE INDEX idx_notifications_read_at ON notifications(read_at);
-CREATE INDEX idx_notifications_created_at ON notifications(created_at);
-CREATE INDEX idx_notifications_type ON notifications(type);
+CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id);
+CREATE INDEX IF NOT EXISTS idx_notifications_read_at ON notifications(read_at);
+CREATE INDEX IF NOT EXISTS idx_notifications_created_at ON notifications(created_at);
+CREATE INDEX IF NOT EXISTS idx_notifications_type ON notifications(type);
 
 -- ============================================================================
 -- SCHEDULED JOBS
 -- ============================================================================
-CREATE TABLE scheduled_jobs (
+CREATE TABLE IF NOT EXISTS scheduled_jobs (
     id SERIAL PRIMARY KEY,
     job_name VARCHAR(100) UNIQUE NOT NULL,
     description TEXT,
@@ -708,13 +738,13 @@ CREATE TABLE scheduled_jobs (
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_scheduled_jobs_next_run_at ON scheduled_jobs(next_run_at);
-CREATE INDEX idx_scheduled_jobs_is_active ON scheduled_jobs(is_active);
+CREATE INDEX IF NOT EXISTS idx_scheduled_jobs_next_run_at ON scheduled_jobs(next_run_at);
+CREATE INDEX IF NOT EXISTS idx_scheduled_jobs_is_active ON scheduled_jobs(is_active);
 
 -- ============================================================================
 -- DATA EXPORT REQUESTS (GDPR)
 -- ============================================================================
-CREATE TABLE data_export_requests (
+CREATE TABLE IF NOT EXISTS data_export_requests (
     id SERIAL PRIMARY KEY,
     user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     
@@ -739,14 +769,14 @@ CREATE TABLE data_export_requests (
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE INDEX idx_data_export_user_id ON data_export_requests(user_id);
-CREATE INDEX idx_data_export_status ON data_export_requests(status);
-CREATE INDEX idx_data_export_created_at ON data_export_requests(created_at);
+CREATE INDEX IF NOT EXISTS idx_data_export_user_id ON data_export_requests(user_id);
+CREATE INDEX IF NOT EXISTS idx_data_export_status ON data_export_requests(status);
+CREATE INDEX IF NOT EXISTS idx_data_export_created_at ON data_export_requests(created_at);
 
 -- ============================================================================
 -- USER TAGS (For Segmentation/Organization)
 -- ============================================================================
-CREATE TABLE tags (
+CREATE TABLE IF NOT EXISTS tags (
     id SERIAL PRIMARY KEY,
     name VARCHAR(50) UNIQUE NOT NULL,
     description TEXT,
@@ -754,7 +784,7 @@ CREATE TABLE tags (
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE user_tags (
+CREATE TABLE IF NOT EXISTS user_tags (
     user_id INT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     tag_id INT NOT NULL REFERENCES tags(id) ON DELETE CASCADE,
     assigned_by INT REFERENCES users(id) ON DELETE SET NULL,
@@ -762,8 +792,8 @@ CREATE TABLE user_tags (
     PRIMARY KEY (user_id, tag_id)
 );
 
-CREATE INDEX idx_user_tags_user_id ON user_tags(user_id);
-CREATE INDEX idx_user_tags_tag_id ON user_tags(tag_id);
+CREATE INDEX IF NOT EXISTS idx_user_tags_user_id ON user_tags(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_tags_tag_id ON user_tags(tag_id);
 
 -- ============================================================================
 -- TRIGGERS
@@ -778,88 +808,45 @@ BEGIN
 END;
 $$ language 'plpgsql';
 
-CREATE TRIGGER update_users_updated_at 
-    BEFORE UPDATE ON users 
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+DROP TRIGGER IF EXISTS update_user_credentials_updated_at ON user_credentials;
+CREATE TRIGGER update_user_credentials_updated_at
+BEFORE UPDATE ON user_credentials
+FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
-CREATE TRIGGER update_user_credentials_updated_at 
-    BEFORE UPDATE ON user_credentials 
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+DROP TRIGGER IF EXISTS update_user_security_info_updated_at ON user_security_info;
+CREATE TRIGGER update_user_security_info_updated_at
+BEFORE UPDATE ON user_security_info
+FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
-CREATE TRIGGER update_user_security_info_updated_at 
-    BEFORE UPDATE ON user_security_info 
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+DROP TRIGGER IF EXISTS update_user_social_auth_updated_at ON user_social_auth;
+CREATE TRIGGER update_user_social_auth_updated_at
+BEFORE UPDATE ON user_social_auth
+FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
-CREATE TRIGGER update_user_social_auth_updated_at 
-    BEFORE UPDATE ON user_social_auth 
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+DROP TRIGGER IF EXISTS update_user_push_tokens_updated_at ON user_push_tokens;
+CREATE TRIGGER update_user_push_tokens_updated_at
+BEFORE UPDATE ON user_push_tokens
+FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
-CREATE TRIGGER update_user_push_tokens_updated_at 
-    BEFORE UPDATE ON user_push_tokens 
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+DROP TRIGGER IF EXISTS update_user_preferences_updated_at ON user_preferences;
+CREATE TRIGGER update_user_preferences_updated_at
+BEFORE UPDATE ON user_preferences
+FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
-CREATE TRIGGER update_user_preferences_updated_at 
-    BEFORE UPDATE ON user_preferences 
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+DROP TRIGGER IF EXISTS update_rate_limit_log_updated_at ON rate_limit_log;
+CREATE TRIGGER update_rate_limit_log_updated_at
+BEFORE UPDATE ON rate_limit_log
+FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
-CREATE TRIGGER update_rate_limit_log_updated_at 
-    BEFORE UPDATE ON rate_limit_log 
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+DROP TRIGGER IF EXISTS update_rate_limit_rules_updated_at ON rate_limit_rules;
+CREATE TRIGGER update_rate_limit_rules_updated_at
+BEFORE UPDATE ON rate_limit_rules
+FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
-CREATE TRIGGER update_rate_limit_rules_updated_at 
-    BEFORE UPDATE ON rate_limit_rules 
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
-CREATE TRIGGER update_scheduled_jobs_updated_at 
-    BEFORE UPDATE ON scheduled_jobs 
-    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-
--- Log account status changes
-CREATE OR REPLACE FUNCTION log_account_status_change()
-RETURNS TRIGGER AS $$
-BEGIN
-    IF OLD.account_status IS DISTINCT FROM NEW.account_status THEN
-        INSERT INTO account_status_changes (
-            user_id, 
-            old_status, 
-            new_status, 
-            reason, 
-            changed_by,
-            ip_address
-        ) VALUES (
-            NEW.id, 
-            OLD.account_status, 
-            NEW.account_status, 
-            NEW.status_reason, 
-            NEW.status_changed_by,
-            inet_client_addr()::VARCHAR
-        );
-        
-        -- Create security event for critical status changes
-        IF NEW.account_status IN ('suspended', 'banned', 'closed') THEN
-            INSERT INTO security_events (
-                user_id,
-                event_type,
-                severity,
-                description,
-                ip_address
-            ) VALUES (
-                NEW.id,
-                'account_status_changed',
-                'high',
-                'Account status changed from ' || OLD.account_status || ' to ' || NEW.account_status,
-                inet_client_addr()::VARCHAR
-            );
-        END IF;
-    END IF;
-    RETURN NEW;
-END;
-$$ LANGUAGE plpgsql;
-
-CREATE TRIGGER track_account_status_changes
-    AFTER UPDATE ON users
-    FOR EACH ROW
-    EXECUTE FUNCTION log_account_status_change();
+DROP TRIGGER IF EXISTS update_scheduled_jobs_updated_at ON scheduled_jobs;
+CREATE TRIGGER update_scheduled_jobs_updated_at
+BEFORE UPDATE ON scheduled_jobs
+FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 
 -- Initialize user preferences on user creation
 CREATE OR REPLACE FUNCTION initialize_user_defaults()
@@ -881,6 +868,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+DROP TRIGGER IF EXISTS initialize_new_user ON users;
 CREATE TRIGGER initialize_new_user
     AFTER INSERT ON users
     FOR EACH ROW
@@ -1229,29 +1217,51 @@ $$ LANGUAGE plpgsql;
 -- ============================================================================
 
 -- Insert default rate limit rules
-INSERT INTO rate_limit_rules (action, max_attempts, window_size_seconds, block_duration_seconds, description) VALUES
+INSERT INTO rate_limit_rules (
+    action,
+    max_attempts,
+    window_size_seconds,
+    block_duration_seconds,
+    description
+) VALUES
 ('login', 5, 300, 1800, '5 login attempts per 5 minutes, block for 30 minutes'),
 ('password_reset', 3, 3600, 3600, '3 password reset attempts per hour, block for 1 hour'),
 ('email_verify', 5, 3600, 3600, '5 email verification attempts per hour, block for 1 hour'),
 ('resend_email', 3, 600, 1800, '3 email resend attempts per 10 minutes, block for 30 minutes'),
 ('api_request', 1000, 3600, 3600, '1000 API requests per hour, block for 1 hour'),
-('password_change', 3, 86400, 86400, '3 password changes per day, block for 24 hours');
+('password_change', 3, 86400, 86400, '3 password changes per day, block for 24 hours')
+ON CONFLICT (action) DO UPDATE SET
+    max_attempts = EXCLUDED.max_attempts,
+    window_size_seconds = EXCLUDED.window_size_seconds,
+    block_duration_seconds = EXCLUDED.block_duration_seconds,
+    description = EXCLUDED.description,
+    updated_at = NOW();
 
 -- Insert default scheduled jobs
-INSERT INTO scheduled_jobs (job_name, description, next_run_at) VALUES
+INSERT INTO scheduled_jobs (
+    job_name,
+    description,
+    next_run_at
+) VALUES
 ('clean_expired_tokens', 'Clean expired tokens from database', CURRENT_TIMESTAMP),
 ('archive_old_logs', 'Archive old login activity and audit logs', CURRENT_TIMESTAMP + INTERVAL '1 day'),
 ('process_email_queue', 'Process pending emails in queue', CURRENT_TIMESTAMP),
 ('calculate_security_scores', 'Recalculate security scores for all users', CURRENT_TIMESTAMP + INTERVAL '1 hour'),
-('cleanup_revoked_sessions', 'Remove old revoked sessions', CURRENT_TIMESTAMP + INTERVAL '7 days');
+('cleanup_revoked_sessions', 'Remove old revoked sessions', CURRENT_TIMESTAMP + INTERVAL '7 days')
+ON CONFLICT (job_name) DO NOTHING;
 
 -- Insert default tags
-INSERT INTO tags (name, description, color) VALUES
+INSERT INTO tags (
+    name,
+    description,
+    color
+) VALUES
 ('vip', 'VIP users', '#FFD700'),
 ('premium', 'Premium subscription users', '#9B59B6'),
 ('verified', 'Verified users', '#3498DB'),
 ('staff', 'Staff members', '#E74C3C'),
-('beta_tester', 'Beta testers', '#F39C12');
+('beta_tester', 'Beta testers', '#F39C12')
+ON CONFLICT (name) DO NOTHING;
 
 -- ============================================================================
 -- VIEWS (Helpful for queries)

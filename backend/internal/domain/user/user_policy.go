@@ -29,6 +29,8 @@ var (
 	ErrCannotReactivateClosed  = errors.New("cannot reactivate closed account")
 	ErrCannotModifyBanned      = errors.New("cannot modify banned account")
 	ErrAccountLocked           = errors.New("account is locked")
+	ErrUserInactive            = errors.New("user account is inactive")
+	ErrEmailNotVerified        = errors.New("email is not verified")
 )
 
 // ============================================================================
@@ -503,8 +505,14 @@ func (u *User) HasPermission(requiredRole UserRole) bool {
 }
 
 // CanLogin checks if user can login (combines multiple checks)
-func (u *User) CanLogin() bool {
-	return u.IsActive() && u.EmailVerified
+func (u *User) CanLogin() error {
+	if !u.IsActive() {
+		return ErrUserInactive
+	}
+	if !u.EmailVerified {
+		return ErrEmailNotVerified
+	}
+	return nil
 }
 
 // CanAccessResource checks if user can access a resource owned by targetUserID
